@@ -1,0 +1,123 @@
+"use client";
+
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Image as ImageIcon,
+  X,
+  ZoomIn,
+  Edit
+} from 'lucide-react';
+import { ConversationImage } from '@/lib/schemas';
+
+interface SelectedImageDisplayProps {
+  selectedImage: ConversationImage | null;
+  onClearSelection: () => void;
+  onImageEnlarge?: (image: ConversationImage) => void;
+}
+
+export function SelectedImageDisplay({
+  selectedImage,
+  onClearSelection,
+  onImageEnlarge
+}: SelectedImageDisplayProps) {
+  if (!selectedImage) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-800/50">
+        <div className="text-center text-gray-500">
+          <Edit className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p className="text-sm">选择要修改的图片</p>
+          <p className="text-xs text-gray-400 mt-1">
+            从上方图片区域选择一张图片进行修改
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full bg-white dark:bg-gray-900">
+      {/* 标题栏 */}
+      <div className="flex items-center justify-between p-3 border-b bg-gray-50 dark:bg-gray-800">
+        <div className="flex items-center gap-2">
+          <Edit className="w-4 h-4" />
+          <span className="text-sm font-medium">选中的图片</span>
+          <Badge variant="default" className="text-xs">
+            图片{selectedImage.number}
+          </Badge>
+        </div>
+
+        {/* 清除选择按钮 */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClearSelection}
+          className="h-6 w-6 p-0"
+        >
+          <X className="w-3 h-3" />
+        </Button>
+      </div>
+
+      {/* 图片显示区域 */}
+      <div className="h-[calc(100%-60px)] p-4">
+        <div className="h-full flex flex-col">
+          {/* 图片容器 */}
+          <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden relative group">
+            <img
+              src={selectedImage.src}
+              alt={`选中图片 ${selectedImage.number}`}
+              className="max-w-full max-h-full object-contain"
+            />
+
+            {/* 放大按钮 */}
+            {onImageEnlarge && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => onImageEnlarge(selectedImage)}
+              >
+                <ZoomIn className="w-4 h-4 mr-1" />
+                放大查看
+              </Button>
+            )}
+          </div>
+
+          {/* 图片信息 */}
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="text-sm">
+              <div className="font-medium mb-1 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                图片信息
+              </div>
+
+              <div className="space-y-2 text-gray-600 dark:text-gray-300">
+                <div>
+                  <span className="font-medium">编号：</span>
+                  图片{selectedImage.number}
+                </div>
+
+                <div>
+                  <span className="font-medium">生成提示词：</span>
+                  <div className="mt-1 text-xs bg-white dark:bg-gray-700 p-2 rounded border">
+                    {selectedImage.prompt}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="font-medium">生成时间：</span>
+                  {selectedImage.timestamp.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 操作提示 */}
+          <div className="mt-2 text-xs text-center text-gray-500">
+            <p>💡 在下方输入框中描述你想要的修改</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

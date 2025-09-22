@@ -1,0 +1,112 @@
+import { z } from 'zod';
+
+// 分割遮罩数据结构
+export const SegmentMaskSchema = z.object({
+  box_2d: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  label: z.string(),
+  mask: z.string()
+});
+
+// 分割对象数据结构
+export const SegmentedObjectSchema = z.object({
+  id: z.string(),
+  mask: SegmentMaskSchema,
+  imageId: z.string(),
+  selected: z.boolean(),
+  position: z.object({
+    x: z.number(),
+    y: z.number()
+  }).optional(),
+  scale: z.number().optional()
+});
+
+// 构图数据结构
+export const CompositionDataSchema = z.object({
+  mode: z.enum(['basic', 'composition']),
+  canvasSize: z.object({
+    width: z.number(),
+    height: z.number()
+  })
+});
+
+// 图像生成请求
+export const GenerateRequestSchema = z.object({
+  prompt: z.string().min(1, "提示词不能为空"),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "颜色格式不正确"),
+  style: z.enum(['cinematic', 'photographic', 'anime', 'fantasy', 'neon-punk']),
+  creativity: z.number().min(0).max(1),
+  referenceImages: z.array(z.string()).optional(),
+  segmentedObjects: z.array(SegmentedObjectSchema).optional(),
+  compositionData: CompositionDataSchema.optional()
+});
+
+// 分割请求
+export const SegmentRequestSchema = z.object({
+  imageData: z.string().min(1, "图像数据不能为空")
+});
+
+// 智能构图分析数据结构
+export const CompositionTemplateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  category: z.enum(['portrait', 'landscape', 'abstract', 'symmetrical', 'asymmetrical']),
+  positions: z.array(z.object({
+    x: z.number().min(0).max(1), // 相对位置 0-1
+    y: z.number().min(0).max(1),
+    width: z.number().min(0).max(1),
+    height: z.number().min(0).max(1),
+    label: z.string()
+  })),
+  thumbnail: z.string().optional()
+});
+
+export const CompositionSuggestionSchema = z.object({
+  id: z.string(),
+  confidence: z.number().min(0).max(1),
+  template: CompositionTemplateSchema,
+  reasoning: z.string(),
+  objectPlacements: z.array(z.object({
+    objectId: z.string(),
+    position: z.object({
+      x: z.number(),
+      y: z.number()
+    }),
+    scale: z.number().optional(),
+    reasoning: z.string()
+  }))
+});
+
+export const ImageAnalysisSchema = z.object({
+  imageId: z.string(),
+  dominantColors: z.array(z.string()),
+  composition: z.object({
+    mainSubjects: z.array(z.string()),
+    focalPoints: z.array(z.object({
+      x: z.number(),
+      y: z.number(),
+      strength: z.number()
+    })),
+    visualWeight: z.enum(['light', 'balanced', 'heavy']),
+    style: z.enum(['realistic', 'artistic', 'abstract', 'graphic'])
+  }),
+  compatibilityScore: z.number().min(0).max(1).optional()
+});
+
+export const SmartLibraryAnalysisSchema = z.object({
+  images: z.array(ImageAnalysisSchema),
+  suggestions: z.array(CompositionSuggestionSchema),
+  recommendedTemplates: z.array(CompositionTemplateSchema),
+  overallCompatibility: z.number().min(0).max(1)
+});
+
+// 类型导出
+export type SegmentMask = z.infer<typeof SegmentMaskSchema>;
+export type SegmentedObject = z.infer<typeof SegmentedObjectSchema>;
+export type CompositionData = z.infer<typeof CompositionDataSchema>;
+export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
+export type SegmentRequest = z.infer<typeof SegmentRequestSchema>;
+export type CompositionTemplate = z.infer<typeof CompositionTemplateSchema>;
+export type CompositionSuggestion = z.infer<typeof CompositionSuggestionSchema>;
+export type ImageAnalysis = z.infer<typeof ImageAnalysisSchema>;
+export type SmartLibraryAnalysis = z.infer<typeof SmartLibraryAnalysisSchema>;
