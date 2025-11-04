@@ -1,0 +1,62 @@
+# 依赖目录
+node_modules
+npm-debug.log
+pnpm-debug.log
+yarn-error.log
+
+# Next.js 构建输出
+.next
+out
+build
+dist
+
+# 测试覆盖率
+coverage
+.nyc_output
+
+# 环境变量文件
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 开发工具
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# 文档
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.log
+*.tmp
+.cache
+.temp

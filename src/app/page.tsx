@@ -316,9 +316,23 @@ export default function Home() {
       return;
     }
 
-    if (!currentConversationId || !currentConversation) {
-      setError('请先选择或创建对话');
-      return;
+    // 如果没有对话,自动创建一个新对话
+    let conversationId = currentConversationId;
+    let conversation = currentConversation;
+    
+    if (!conversationId || !conversation) {
+      try {
+        const newConversation = await createNewConversation();
+        setConversations(prev => [newConversation, ...prev]);
+        setCurrentConversationId(newConversation.id);
+        conversationId = newConversation.id;
+        conversation = newConversation;
+        setCurrentConversation(newConversation);
+      } catch (error) {
+        console.error('Failed to create conversation:', error);
+        setError('创建对话失败,请重试');
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -332,12 +346,12 @@ export default function Home() {
       // 保存用户消息
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        conversationId: currentConversationId,
+        conversationId: conversationId,
         type: 'user',
         content: prompt,
         timestamp: new Date(),
       };
-      await addMessageToConversation(currentConversationId, userMessage);
+      await addMessageToConversation(conversationId, userMessage);
 
       // 准备引用的图片 - 主图(左侧选中)作为图片1,引用列表按顺序排列
       const referenceImages: string[] = [];
@@ -356,7 +370,7 @@ export default function Home() {
         let isValid = false;
 
         if (item.type === 'image') {
-          const image = currentConversation?.images.find(img => img.id === item.id);
+          const image = conversation.images.find(img => img.id === item.id);
           if (image) {
             try {
               const src = await getImageSrc(image.srcId);
@@ -394,7 +408,7 @@ export default function Home() {
       console.log('有效引用:', validReferences.map((name, idx) => `${idx + 1}. ${name}`));
 
       // 构建对话历史上下文
-      const conversationHistory = currentConversation.messages
+      const conversationHistory = conversation.messages
         .slice(-10) // 只取最近10条消息作为上下文
         .map(msg => ({
           role: msg.type === 'user' ? 'user' : 'assistant',
@@ -412,7 +426,7 @@ export default function Home() {
           prompt: selectedImage
             ? `基于图片1进行修改：${prompt}`
             : prompt,
-          conversationId: currentConversationId,
+          conversationId: conversationId,
           selectedImageId: selectedImage?.id,
           referenceImages,
           conversationHistory
@@ -424,7 +438,7 @@ export default function Home() {
         setPrompt('');
         clearReferences();
         // 刷新对话数据状态
-        await loadConversationData(currentConversationId, false);
+        await loadConversationData(conversationId, false);
         return;
       }
 
@@ -484,13 +498,13 @@ export default function Home() {
         // 未生成图片,保存AI的文字回复并提示用户
         const assistantMessage: ChatMessage = {
           id: crypto.randomUUID(),
-          conversationId: currentConversationId,
+          conversationId: conversationId,
           type: 'assistant',
           content: description || '抱歉,本次未能生成图片,请尝试调整提示词后重试',
           timestamp: new Date(),
         };
-        await addMessageToConversation(currentConversationId, assistantMessage);
-        await loadConversationData(currentConversationId, false); // 不清除选中的图片
+        await addMessageToConversation(conversationId, assistantMessage);
+        await loadConversationData(conversationId, false); // 不清除选中的图片
 
         setError('本次未生成图片,已保存对话记录');
         setPrompt('');
@@ -505,7 +519,7 @@ export default function Home() {
 
       // 保存其他图片到对话中
       for (let i = 0; i < otherImages.length; i++) {
-        const imageNumber = await getNextImageNumber(currentConversationId);
+        const imageNumber = await getNextImageNumber(conversationId);
         const imageId = crypto.randomUUID();
         const imageMeta: ConversationImageMeta = {
           id: imageId,
@@ -515,11 +529,11 @@ export default function Home() {
           messageId: userMessage.id,
           number: imageNumber,
         };
-        await addImageToConversation(currentConversationId, imageMeta, otherImages[i]);
+        await addImageToConversation(conversationId, imageMeta, otherImages[i]);
       }
 
       // 保存最后一张图片(修改主图)
-      const mainImageNumber = await getNextImageNumber(currentConversationId);
+      const mainImageNumber = await getNextImageNumber(conversationId);
       const mainImageId = crypto.randomUUID();
       const mainImageMeta: ConversationImageMeta = {
         id: mainImageId,
@@ -531,12 +545,12 @@ export default function Home() {
         messageId: userMessage.id,
         number: mainImageNumber,
       };
-      await addImageToConversation(currentConversationId, mainImageMeta, lastImageUrl);
+      await addImageToConversation(conversationId, mainImageMeta, lastImageUrl);
 
       // 保存AI回复消息
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        conversationId: currentConversationId,
+        conversationId: conversationId,
         type: 'assistant',
         content: imageUrls.length > 1
           ? `${description}\n\n生成了${imageUrls.length}张图片,已使用最后一张作为修改主图`
@@ -544,10 +558,10 @@ export default function Home() {
         timestamp: new Date(),
         generatedImageId: mainImageId,
       };
-      await addMessageToConversation(currentConversationId, assistantMessage);
+      await addMessageToConversation(conversationId, assistantMessage);
 
       // 重新加载会话数据(不清除选中状态,因为下面会设置新图片)
-      await loadConversationData(currentConversationId, false);
+      await loadConversationData(conversationId, false);
 
       // 清空提示词和引用列表
       setPrompt('');
@@ -804,7 +818,7 @@ export default function Home() {
             <div className="flex flex-col gap-2">
               <Button
                 onClick={handleGenerateImage}
-                disabled={!apiKey.trim() || !prompt.trim() || isGenerating || !currentConversationId}
+                disabled={!apiKey.trim() || !prompt.trim() || isGenerating}
                 size="lg"
                 className="px-6"
               >

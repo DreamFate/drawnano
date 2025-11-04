@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  drawnano:
+    image: dreama999/ddreama:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    # 如果需要环境变量,取消注释下面这行
+    # env_file:
+    #   - .env.production

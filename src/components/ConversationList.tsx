@@ -38,6 +38,13 @@ export function ConversationList({
     loadConversations();
   }, []);
 
+  // 监听currentConversationId变化,如果发现新对话ID但列表中不存在,则重新加载
+  useEffect(() => {
+    if (currentConversationId && !conversations.find(c => c.id === currentConversationId)) {
+      loadConversations();
+    }
+  }, [currentConversationId, conversations]);
+
   const loadConversations = async () => {
     try {
       setIsLoading(true);
