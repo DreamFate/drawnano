@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
-import { GenerateRequestSchema, type SegmentedObject } from '@/types/api';
+import { GenerateRequestSchema, type SegmentedObject, type MessageContentItem } from '@/types/api';
 import { ZodError } from 'zod';
-
-// 导入 Google AI SDK。注意：这可能需要根据我们最终使用的服务进行更改。
-// import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: Request) {
   try {
@@ -13,11 +10,10 @@ export async function POST(request: Request) {
 
     const {
       prompt,
-      color,
-      style,
-      creativity,
+      messageContent,
       referenceImages,
-      segmentedObjects
+      segmentedObjects,
+      conversationHistory
     } = validatedData;
 
     // 2. 验证必要参数
@@ -25,63 +21,111 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // 从请求头获取用户的API Key
+    const apiKey = request.headers.get('X-API-Key') || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key is not configured' }, { status: 500 });
+      return NextResponse.json({ error: 'API key is required' }, { status: 401 });
     }
 
-    // 3. 构建精准构图提示词
-    let fullPrompt = prompt;
+    // 3. 构建消息数组
+    let messages: Array<{ role: string; content: string | MessageContentItem[] }>;
 
-    if (segmentedObjects && segmentedObjects.length > 0) {
-      // 视觉构图模式：添加精准位置和组合信息
-      const objectDescriptions = segmentedObjects
-        .filter((obj: SegmentedObject) => obj.selected)
-        .map((obj: SegmentedObject) =>
-          `将"${obj.mask.label}"精准放置在位置(${obj.position?.x || 0}, ${obj.position?.y || 0})处`
-        )
-        .join(', ');
-
-      fullPrompt += `. 精准构图要求: ${objectDescriptions}`;
+    // 方式1: 前端已组装好messageContent(修改模式)
+    if (messageContent && messageContent.length > 0) {
+      messages = [
+        ...(conversationHistory || []),
+        {
+          role: 'user',
+          content: messageContent
+        }
+      ];
     }
+    // 方式2: 传统方式(生成模式)
+    else {
+      let fullPrompt = prompt;
 
-    // 添加风格和颜色信息
-    fullPrompt += `, in the style of ${style}, with a dominant color of ${color}`;
+      if (segmentedObjects && segmentedObjects.length > 0) {
+        // 视觉构图模式：添加精准位置和组合信息
+        const objectDescriptions = segmentedObjects
+          .filter((obj: SegmentedObject) => obj.selected)
+          .map((obj: SegmentedObject) =>
+            `将"${obj.mask.label}"精准放置在位置(${obj.position?.x || 0}, ${obj.position?.y || 0})处`
+          )
+          .join(', ');
 
-    // 4. 准备调用模型 API
-    // 4. 构建消息内容
-    const messageContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
-      {
-        type: 'text',
-        text: fullPrompt
+        fullPrompt += `. 精准构图要求: ${objectDescriptions}`;
       }
-    ];
 
-    // 添加参考图片
-    if (referenceImages && referenceImages.length > 0) {
-      referenceImages.forEach((imageData: string) => {
-        messageContent.push({
-          type: 'image_url',
-          image_url: {
-            url: imageData
-          }
+      const content: MessageContentItem[] = [
+        {
+          type: 'text',
+          text: fullPrompt
+        }
+      ];
+
+      // 添加参考图片
+      if (referenceImages && referenceImages.length > 0) {
+        referenceImages.forEach((imageData: string) => {
+          content.push({
+            type: 'image_url',
+            image_url: {
+              url: imageData
+            }
+          });
         });
-      });
+      }
+
+      // 添加对话历史上下文
+      messages = [
+        ...(conversationHistory || []),
+        {
+          role: 'user',
+          content
+        }
+      ];
     }
+
+    console.log('对话历史条数:', conversationHistory?.length || 0);
+    console.log('总消息数:', messages.length);
 
     const API_URL = 'https://openai.weavex.tech/v1/chat/completions';
 
     const requestBody = {
       model: 'gemini-2.5-flash-image-preview',
-      messages: [
-        {
-          role: 'user',
-          content: messageContent,
-        },
-      ],
+      messages,
       stream: true,
-      temperature: creativity,
     };
+
+    // 创建一个用于日志的副本,截断 base64 图片数据
+    const logRequestBody = {
+      ...requestBody,
+      messages: requestBody.messages.map(msg => {
+        if (Array.isArray(msg.content)) {
+          return {
+            ...msg,
+            content: msg.content.map((item: any) => {
+              if (item.type === 'image_url' && item.image_url?.url) {
+                const url = item.image_url.url;
+                const truncated = url.length > 100
+                  ? url.substring(0, 50) + '...[truncated ' + (url.length - 50) + ' chars]...' + url.substring(url.length - 20)
+                  : url;
+                return {
+                  ...item,
+                  image_url: {
+                    ...item.image_url,
+                    url: truncated
+                  }
+                };
+              }
+              return item;
+            })
+          };
+        }
+        return msg;
+      })
+    };
+
+    console.log('API Request Body:', JSON.stringify(logRequestBody, null, 2));
 
     // 5. 发送请求到模型 API
     const response = await fetch(API_URL, {
@@ -103,64 +147,149 @@ export async function POST(request: Request) {
       throw new Error("Response body is null");
     }
 
-    // 6. 在后端收集流式响应
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullContent = '';
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      // 将新接收的数据块附加到缓冲区
-      buffer += decoder.decode(value, { stream: true });
-
-      // 按换行符分割缓冲区，处理所有完整的行
-      const lines = buffer.split('\n');
-
-      // 最后一个元素可能是不完整的行，所以我们保留它在缓冲区中
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim() === '' || !line.startsWith('data: ')) {
-          continue;
-        }
-
-        const dataStr = line.substring(6).trim();
-        if (dataStr === '[DONE]') {
-          break;
-        }
+    // 6. 创建流式响应,实时推送文字和图片
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let textContent = '';
+        const imageUrls: string[] = [];
 
         try {
-          const data = JSON.parse(dataStr);
-          if (data.choices && data.choices[0]?.delta && data.choices[0]?.delta?.content) {
-            fullContent += data.choices[0].delta.content;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.trim() === '' || !line.startsWith('data: ')) {
+                continue;
+              }
+
+              const dataStr = line.substring(6).trim();
+              if (dataStr === '[DONE]') {
+                break;
+              }
+
+              try {
+                const data = JSON.parse(dataStr);
+                const content = data.choices?.[0]?.delta?.content;
+
+                if (content) {
+                  // 检查是否包含图片
+                  const base64Regex = /(data:image\/[a-zA-Z]+;base64,[^)]+)/g;
+                  let lastIndex = 0;
+                  let match;
+
+                  let hasImageMatch = false;
+                  while ((match = base64Regex.exec(content)) !== null) {
+                    hasImageMatch = true;
+
+                    // 发送图片前的文字
+                    if (match.index > lastIndex) {
+                      const text = content.substring(lastIndex, match.index)
+                        .replace(/!\[.*?\]\(/g, '')
+                        .replace(/\)/g, '')
+                        .trim();
+
+                      if (text) {
+                        textContent += text;
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: 'text',
+                          content: text
+                        })}\n\n`));
+                      }
+                    }
+
+                    // 发送图片
+                    const imageUrl = match[0];
+                    imageUrls.push(imageUrl);
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                      type: 'image',
+                      content: imageUrl,
+                      index: imageUrls.length - 1,
+                      isLast: false
+                    })}\n\n`));
+
+                    lastIndex = base64Regex.lastIndex;
+                  }
+
+                  // 处理剩余文字(如果有图片匹配)或整个content(如果没有图片)
+                  if (hasImageMatch && lastIndex < content.length) {
+                    // 有图片,处理图片后的剩余文字
+                    const text = content.substring(lastIndex)
+                      .replace(/!\[.*?\]\(/g, '')
+                      .replace(/\)/g, '')
+                      .trim();
+
+                    if (text) {
+                      textContent += text;
+                      console.log('[流式输出] 发送图片后文字:', text);
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                        type: 'text',
+                        content: text
+                      })}\n\n`));
+                    }
+                  } else if (!hasImageMatch) {
+                    // 没有图片,整个content都是文字
+                    const text = content.replace(/!\[.*?\]\(/g, '').replace(/\)/g, '').trim();
+                    if (text) {
+                      textContent += text;
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                        type: 'text',
+                        content: text
+                      })}\n\n`));
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing stream chunk:', e);
+              }
+            }
           }
-        } catch (e) {
-          console.error('Error parsing stream chunk:', dataStr, e);
+
+          // 流结束,发送完成信号
+          console.log('[流式完成] 汇总:', {
+            文字总长度: textContent.length,
+            文字内容: textContent || '(无文字)',
+            图片数量: imageUrls.length,
+            图片列表: imageUrls.map((url, i) =>
+              `图片${i+1}: ${url.substring(0, 30)}...${url.substring(url.length - 20)}`
+            )
+          });
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'done',
+            textContent: textContent || '图片已生成',
+            imageCount: imageUrls.length,
+            hasImages: imageUrls.length > 0
+          })}\n\n`));
+
+        } catch (error) {
+          console.error('Stream error:', error);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'error',
+            message: error instanceof Error ? error.message : 'Stream processing failed'
+          })}\n\n`));
+        } finally {
+          controller.close();
         }
       }
-    }
+    });
 
-    // 7. 从收集到的内容中提取 Base64 图片数据
-    // 假设图片数据格式为 Markdown: ![...](data:image/png;base64,...)
-    const base64Regex = /(data:image\/[a-zA-Z]+;base64,[^)]+)/;
-    const match = fullContent.match(base64Regex);
-
-    if (!match || !match[0]) {
-      console.error('Could not find base64 image in the response:', fullContent);
-      throw new Error('Could not find base64 image in the API response');
-    }
-
-    const imageUrl = match[0];
-
-    // 8. 返回生成结果和相关信息
-    return NextResponse.json({
-      imageUrl,
-      compositionUsed: segmentedObjects && segmentedObjects.length > 0,
-      objectsCount: segmentedObjects ? segmentedObjects.filter((obj: SegmentedObject) => obj.selected).length : 0
+    // 7. 返回流式响应
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     });
 
   } catch (error: unknown) {
@@ -177,3 +306,5 @@ export async function POST(request: Request) {
     }, { status: 500 });
   }
 }
+
+// 注: extractImageAndText 函数已被移除,改为流式处理

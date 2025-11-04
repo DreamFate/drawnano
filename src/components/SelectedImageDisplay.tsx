@@ -6,20 +6,23 @@ import {
   Image as ImageIcon,
   X,
   ZoomIn,
-  Edit
+  Edit,
+  Loader2
 } from 'lucide-react';
-import { ConversationImage } from '@/lib/schemas';
+import { ConversationImageMeta } from '@/lib/schemas';
 
 interface SelectedImageDisplayProps {
-  selectedImage: ConversationImage | null;
+  selectedImage: (ConversationImageMeta & { src: string }) | null;
   onClearSelection: () => void;
-  onImageEnlarge?: (image: ConversationImage) => void;
+  onImageEnlarge?: (image: ConversationImageMeta & { src: string }) => void;
+  isGenerating?: boolean;
 }
 
 export function SelectedImageDisplay({
   selectedImage,
   onClearSelection,
-  onImageEnlarge
+  onImageEnlarge,
+  isGenerating = false
 }: SelectedImageDisplayProps) {
   if (!selectedImage) {
     return (
@@ -69,8 +72,18 @@ export function SelectedImageDisplay({
               className="max-w-full max-h-full object-contain"
             />
 
+            {/* 加载动画覆盖层 */}
+            {isGenerating && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <div className="text-center text-white">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                  <p className="text-sm">正在生成图片...</p>
+                </div>
+              </div>
+            )}
+
             {/* 放大按钮 */}
-            {onImageEnlarge && (
+            {onImageEnlarge && !isGenerating && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -81,35 +94,6 @@ export function SelectedImageDisplay({
                 放大查看
               </Button>
             )}
-          </div>
-
-          {/* 图片信息 */}
-          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div className="text-sm">
-              <div className="font-medium mb-1 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" />
-                图片信息
-              </div>
-
-              <div className="space-y-2 text-gray-600 dark:text-gray-300">
-                <div>
-                  <span className="font-medium">编号：</span>
-                  图片{selectedImage.number}
-                </div>
-
-                <div>
-                  <span className="font-medium">生成提示词：</span>
-                  <div className="mt-1 text-xs bg-white dark:bg-gray-700 p-2 rounded border">
-                    {selectedImage.prompt}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="font-medium">生成时间：</span>
-                  {selectedImage.timestamp.toLocaleString()}
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* 操作提示 */}

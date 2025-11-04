@@ -29,15 +29,35 @@ export const CompositionDataSchema = z.object({
   })
 });
 
+// 消息内容项
+export const MessageContentItemSchema = z.object({
+  type: z.enum(['text', 'image_url']),
+  text: z.string().optional(),
+  image_url: z.object({
+    url: z.string()
+  }).optional()
+});
+
+// 对话消息
+export const ConversationMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string()
+});
+
 // 图像生成请求
 export const GenerateRequestSchema = z.object({
   prompt: z.string().min(1, "提示词不能为空"),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "颜色格式不正确"),
-  style: z.enum(['cinematic', 'photographic', 'anime', 'fantasy', 'neon-punk']),
-  creativity: z.number().min(0).max(1),
+
+  // 方式1: 前端组装好的完整content(用于修改模式)
+  messageContent: z.array(MessageContentItemSchema).optional(),
+
+  // 方式2: 传统参数(用于生成模式)
   referenceImages: z.array(z.string()).optional(),
   segmentedObjects: z.array(SegmentedObjectSchema).optional(),
-  compositionData: CompositionDataSchema.optional()
+  compositionData: CompositionDataSchema.optional(),
+
+  // 对话历史(用于修改模式)
+  conversationHistory: z.array(ConversationMessageSchema).optional()
 });
 
 // 分割请求
@@ -104,6 +124,8 @@ export const SmartLibraryAnalysisSchema = z.object({
 export type SegmentMask = z.infer<typeof SegmentMaskSchema>;
 export type SegmentedObject = z.infer<typeof SegmentedObjectSchema>;
 export type CompositionData = z.infer<typeof CompositionDataSchema>;
+export type MessageContentItem = z.infer<typeof MessageContentItemSchema>;
+export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
 export type SegmentRequest = z.infer<typeof SegmentRequestSchema>;
 export type CompositionTemplate = z.infer<typeof CompositionTemplateSchema>;

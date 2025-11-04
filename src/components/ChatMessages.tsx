@@ -4,15 +4,18 @@ import { useEffect, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { User, Bot, Image as ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { User, Bot, Image as ImageIcon, Trash2, Eraser } from 'lucide-react';
 import { ChatMessage } from '@/lib/schemas';
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isGenerating?: boolean;
+  onDeleteMessage?: (messageId: string) => void;
+  onClearMessages?: () => void;
 }
 
-export function ChatMessages({ messages, isGenerating }: ChatMessagesProps) {
+export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearMessages }: ChatMessagesProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -51,9 +54,22 @@ export function ChatMessages({ messages, isGenerating }: ChatMessagesProps) {
           <Bot className="w-4 h-4" />
           <span className="text-sm font-medium">对话记录</span>
         </div>
-        <Badge variant="secondary" className="text-xs">
-          {messages.length} 条消息
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-xs">
+            {messages.length} 条消息
+          </Badge>
+          {messages.length > 0 && onClearMessages && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearMessages}
+              className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Eraser className="w-3 h-3 mr-1" />
+              清空
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 消息列表 */}
@@ -77,7 +93,7 @@ export function ChatMessages({ messages, isGenerating }: ChatMessagesProps) {
 
               {/* 消息内容 */}
               <div
-                className={`max-w-[80%] ${
+                className={`max-w-[80%] relative group ${
                   message.type === 'user'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
@@ -106,6 +122,18 @@ export function ChatMessages({ messages, isGenerating }: ChatMessagesProps) {
                 >
                   {formatTime(message.timestamp)}
                 </div>
+
+                {/* 删除按钮 */}
+                {onDeleteMessage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDeleteMessage(message.id)}
+                    className="absolute -top-2 -right-2 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
               </div>
 
               {/* 用户头像 */}

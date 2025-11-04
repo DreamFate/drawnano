@@ -9,9 +9,7 @@ import { Plus, MessageSquare, Trash2, MoreVertical } from 'lucide-react';
 import {
   getAllConversations,
   createNewConversation,
-  deleteConversation,
-  getCurrentConversationId,
-  setCurrentConversationId
+  deleteConversation
 } from '@/lib/conversation-storage';
 import { Conversation } from '@/lib/schemas';
 import {
@@ -24,11 +22,13 @@ import {
 interface ConversationListProps {
   currentConversationId: string | null;
   onConversationChange: (conversationId: string) => void;
+  disabled?: boolean;
 }
 
 export function ConversationList({
   currentConversationId,
-  onConversationChange
+  onConversationChange,
+  disabled = false
 }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,13 +89,8 @@ export function ConversationList({
   };
 
   // 选择对话
-  const handleSelectConversation = async (conversationId: string) => {
-    try {
-      await setCurrentConversationId(conversationId);
-      onConversationChange(conversationId);
-    } catch (error) {
-      console.error('Failed to select conversation:', error);
-    }
+  const handleSelectConversation = (conversationId: string) => {
+    onConversationChange(conversationId);
   };
 
   // 格式化时间
@@ -157,6 +152,7 @@ export function ConversationList({
           onClick={handleCreateConversation}
           className="w-full mb-3"
           variant="outline"
+          disabled={disabled}
         >
           <Plus className="w-4 h-4 mr-2" />
           新建对话
@@ -169,12 +165,14 @@ export function ConversationList({
               {conversations.map((conversation) => (
                 <div
                   key={conversation.id}
-                  className={`group relative p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={`group relative p-3 rounded-lg border transition-colors ${
                     conversation.id === currentConversationId
                       ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                       : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-700'
+                  } ${
+                    disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                   }`}
-                  onClick={() => handleSelectConversation(conversation.id)}
+                  onClick={() => !disabled && handleSelectConversation(conversation.id)}
                 >
                   {/* 对话标题 */}
                   <div className="flex items-start justify-between">

@@ -215,7 +215,7 @@ export function NumberedLibrary({
               <p className="text-xs">上传图片后会自动编号</p>
               <p className="text-xs text-gray-400 mt-2">
                 拖拽编号素材到主图片区域<br/>
-                建立"区域 → 素材"的替换关系
+                建立&quot;区域 → 素材&quot;的替换关系
               </p>
             </div>
           )}
