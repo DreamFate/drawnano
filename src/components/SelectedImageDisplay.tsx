@@ -31,7 +31,7 @@ export function SelectedImageDisplay({
           <Edit className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p className="text-sm">选择要修改的图片</p>
           <p className="text-xs text-gray-400 mt-1">
-            从上方图片区域选择一张图片进行修改
+            从生成的图片或素材库中选择一张图片进行修改
           </p>
         </div>
       </div>
@@ -41,7 +41,7 @@ export function SelectedImageDisplay({
   return (
     <div className="h-full bg-white dark:bg-gray-900">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between p-3 border-b bg-gray-50 dark:bg-gray-800">
+      <div className="flex min-h-[40px] items-center justify-between p-2 border-b bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-2">
           <Edit className="w-4 h-4" />
           <span className="text-sm font-medium">选中的图片</span>

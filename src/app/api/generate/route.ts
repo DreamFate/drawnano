@@ -13,7 +13,14 @@ export async function POST(request: Request) {
       messageContent,
       referenceImages,
       segmentedObjects,
-      conversationHistory
+      conversationHistory,
+      systemStyle,
+      model = 'gemini-2.5-flash',
+      aspectRatio = '16:9',
+      resolution,
+      modalities = 'Image_Text',
+      apiUrl,
+      modelMapping,
     } = validatedData;
 
     // 2. 验证必要参数
@@ -28,11 +35,20 @@ export async function POST(request: Request) {
     }
 
     // 3. 构建消息数组
-    let messages: Array<{ role: string; content: string | MessageContentItem[] }>;
+    let messages: Array<{ role: string; content: string | MessageContentItem[] }> = [];
+
+    // 添加 system prompt（整体风格描述）
+    if (systemStyle && systemStyle.trim()) {
+      messages.push({
+        role: 'system',
+        content: `你是一个专业的图像生成助手。请按照以下整体风格要求来生成图片：\n\n${systemStyle.trim()}\n\n请确保生成的图片符合上述风格描述。`
+      });
+    }
 
     // 方式1: 前端已组装好messageContent(修改模式)
     if (messageContent && messageContent.length > 0) {
       messages = [
+        ...messages,
         ...(conversationHistory || []),
         {
           role: 'user',
@@ -75,8 +91,9 @@ export async function POST(request: Request) {
         });
       }
 
-      // 添加对话历史上下文
+      // 添加对话历史上下文（保留已有的 system message）
       messages = [
+        ...messages,
         ...(conversationHistory || []),
         {
           role: 'user',
@@ -88,13 +105,45 @@ export async function POST(request: Request) {
     console.log('对话历史条数:', conversationHistory?.length || 0);
     console.log('总消息数:', messages.length);
 
-    const API_URL = 'https://openai.weavex.tech/v1/chat/completions';
+    const DEFAULT_API_URL = 'https://openai.weavex.tech/v1/chat/completions';
+    const API_URL = apiUrl || DEFAULT_API_URL;
+
+    // 模型映射（使用用户自定义或默认值）
+    const DEFAULT_MODEL_MAP: Record<string, string> = {
+      'gemini-2.5-flash': 'gemini-2.5-flash-image-preview',
+      'gemini-3-pro': 'gemini-3-pro-image-preview'
+    };
+    const MODEL_MAP = modelMapping || DEFAULT_MODEL_MAP;
+    const actualModel = MODEL_MAP[model] ?? DEFAULT_MODEL_MAP['gemini-2.5-flash'];
+
+    // 构建图片配置
+    const imageConfig: Record<string, string> = {};
+    if (aspectRatio !== 'auto') {
+      imageConfig.aspectRatio = aspectRatio;
+    }
+    if (model === 'gemini-3-pro' && resolution) {
+      imageConfig.imageSize = resolution;
+    }
+
+    // 输出模态
+    const responseModalities = modalities === 'Image_Text'
+      ? ['Image', 'Text']
+      : [modalities];
 
     const requestBody = {
-      model: 'gemini-2.5-flash-image-preview',
+      model: actualModel,
       messages,
       stream: true,
+      raw: true,
+      generationConfig: {
+        ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
+        responseModalities
+      }
     };
+
+
+
+    console.log('使用模型:', actualModel, '宽高比:', aspectRatio, '分辨率:', resolution || '默认');
 
     // 创建一个用于日志的副本,截断 base64 图片数据
     const logRequestBody = {
@@ -261,7 +310,7 @@ export async function POST(request: Request) {
             文字内容: textContent || '(无文字)',
             图片数量: imageUrls.length,
             图片列表: imageUrls.map((url, i) =>
-              `图片${i+1}: ${url.substring(0, 30)}...${url.substring(url.length - 20)}`
+              `图片${i+1}: `
             )
           });
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({
