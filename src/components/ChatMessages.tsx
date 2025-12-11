@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Bot, Image as ImageIcon, Trash2, Eraser, RefreshCw, ChevronDown, Copy, AlertCircle } from 'lucide-react';
-import { ChatMessage } from '@/lib/schemas';
+import { ChatMessage } from '@/types';
 
 interface ChatMessagesProps {
   messages: ChatMessage[];

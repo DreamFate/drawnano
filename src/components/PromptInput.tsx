@@ -2,8 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ConversationImageMeta } from '@/lib/schemas';
-import { ModelOption, AspectRatio, Resolution,Modalities } from '@/types/api';
+import { ImageWithSrc, ImageReference, ModelOption, AspectRatio, Resolution, Modalities, GenerationConfig } from '@/types';
 import {
     InputGroup,
     InputGroupAddon,
@@ -22,31 +21,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from 'lucide-react';
 
-// 引用项类型
-export interface ReferenceItem {
-    type: 'image' | 'material';
-    id: string;
-    originalNumber: number;
-    displayName: string;
-    src: string;
-}
-
-// 生成配置类型
-export interface GenerationConfig {
-    model: ModelOption;
-    aspectRatio: AspectRatio;
-    resolution?: Resolution;
-    modality: Modalities;
-}
-
 interface PromptInputProps {
     prompt: string;
     onPromptChange: (value: string) => void;
     onGenerate: () => void;
     isGenerating: boolean;
     apiKey: string;
-    selectedImage: (ConversationImageMeta & { src: string }) | null;
-    referencedItems: ReferenceItem[];
+    selectedImage: ImageWithSrc | null;
+    referencedItems: ImageReference[];
     onRemoveReference: (id: string) => void;
     onClearReferences: () => void;
     hasImages: boolean;

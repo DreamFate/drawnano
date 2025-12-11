@@ -23,15 +23,12 @@ import {
     RotateCcw,
     Upload
 } from 'lucide-react';
-import { ConversationImageMeta } from '@/lib/schemas';
+import { ImageMeta } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
 import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group"
 
-// 统一的图片类型（兼容生图和素材）
-export interface GalleryImage extends ConversationImageMeta {
-    name?: string; // 素材特有
-    isMaterial?: boolean; // 标记是否为素材
-}
+// 统一的图片类型（使用 discriminated union）
+export type GalleryImage = ImageMeta;
 
 interface ImageGalleryProps {
     mode: 'generated' | 'material';
@@ -46,9 +43,9 @@ interface ImageGalleryProps {
 }
 
 // 扩展类型，包含加载的 src
-interface ImageWithSrc extends GalleryImage {
+type ImageWithSrc = GalleryImage & {
     src?: string;
-}
+};
 
 export function ImageGallery({
     mode,

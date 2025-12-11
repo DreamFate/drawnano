@@ -1,4 +1,4 @@
-import { GenerationConfig } from '@/components/PromptInput';
+import { GenerationConfig } from '@/types';
 
 const STORAGE_KEY = 'drawnano_generation_config';
 

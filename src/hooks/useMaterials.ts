@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { MaterialItem } from '@/lib/schemas';
+import { MaterialMeta } from '@/types';
 import {
   getAllMaterials,
   addMaterial,
@@ -11,7 +11,7 @@ import { getImageSrc } from '@/lib/conversation-storage';
  * 素材库管理 hook
  */
 export function useMaterials() {
-  const [materials, setMaterials] = useState<MaterialItem[]>([]);
+  const [materials, setMaterials] = useState<MaterialMeta[]>([]);
 
   // 加载所有素材
   const loadMaterials = useCallback(async () => {
@@ -25,23 +25,35 @@ export function useMaterials() {
     }
   }, []);
 
+  // 读取文件为 base64
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to read file'));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  };
+
   // 上传素材
   const uploadMaterials = useCallback(async (files: FileList) => {
-    for (const file of Array.from(files)) {
-      if (file.type.startsWith('image/')) {
-        try {
-          const reader = new FileReader();
-          reader.onload = async (event) => {
-            const result = event.target?.result;
-            if (typeof result === 'string') {
-              const newMaterial = await addMaterial(result, file.name);
-              setMaterials(prev => [...prev, newMaterial]);
-            }
-          };
-          reader.readAsDataURL(file);
-        } catch (error) {
-          console.error('Failed to add material:', error);
-        }
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+
+    // 顺序处理每个文件，确保 number 正确递增
+    for (const file of imageFiles) {
+      try {
+        const base64 = await readFileAsDataURL(file);
+        const newMaterial = await addMaterial(base64, file.name);
+        setMaterials(prev => [...prev, newMaterial]);
+      } catch (error) {
+        console.error('Failed to add material:', error);
       }
     }
   }, []);

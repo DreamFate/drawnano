@@ -1,29 +1,33 @@
-import { ImageMeta, ImageMetaSerializedSchema } from './schemas';
+import {
+  GeneratedImageMeta,
+  GeneratedImageMetaSerializedSchema,
+  MaterialMeta,
+  MaterialMetaSerializedSchema,
+} from '@/types';
 import { storeImage, getImage, deleteImage } from './image-storage';
 
 /**
- * 创建图片存储（工厂函数）
- * 素材和生成图片共用同一套逻辑，只是存储 key 不同
+ * 创建生成图片存储
  */
-export function createImageStore(storageKey: string) {
+export function createGeneratedImageStore(storageKey: string) {
 
-  async function getAll(): Promise<ImageMeta[]> {
+  async function getAll(): Promise<GeneratedImageMeta[]> {
     try {
       const stored = localStorage.getItem(storageKey);
       if (!stored) return [];
       const parsed = JSON.parse(stored) as unknown[];
-      return parsed.map(item => ImageMetaSerializedSchema.parse(item));
+      return parsed.map(item => GeneratedImageMetaSerializedSchema.parse(item));
     } catch (error) {
       console.error(`Failed to load images from ${storageKey}:`, error);
       return [];
     }
   }
 
-  async function saveAll(images: ImageMeta[]): Promise<void> {
+  async function saveAll(images: GeneratedImageMeta[]): Promise<void> {
     localStorage.setItem(storageKey, JSON.stringify(images));
   }
 
-  async function add(imageMeta: ImageMeta, base64Src: string): Promise<void> {
+  async function add(imageMeta: GeneratedImageMeta, base64Src: string): Promise<void> {
     await storeImage(imageMeta.srcId, base64Src);
     const images = await getAll();
     images.push(imageMeta);
@@ -64,9 +68,71 @@ export function createImageStore(storageKey: string) {
   return { getAll, add, remove, getNextNumber, clearAll };
 }
 
+/**
+ * 创建素材存储
+ */
+export function createMaterialStore(storageKey: string) {
+
+  async function getAll(): Promise<MaterialMeta[]> {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored) as unknown[];
+      return parsed.map(item => MaterialMetaSerializedSchema.parse(item));
+    } catch (error) {
+      console.error(`Failed to load materials from ${storageKey}:`, error);
+      return [];
+    }
+  }
+
+  async function saveAll(materials: MaterialMeta[]): Promise<void> {
+    localStorage.setItem(storageKey, JSON.stringify(materials));
+  }
+
+  async function add(materialMeta: MaterialMeta, base64Src: string): Promise<void> {
+    await storeImage(materialMeta.srcId, base64Src);
+    const materials = await getAll();
+    materials.push(materialMeta);
+    await saveAll(materials);
+  }
+
+  async function remove(materialId: string): Promise<void> {
+    const materials = await getAll();
+    const materialToDelete = materials.find(m => m.id === materialId);
+    if (!materialToDelete) throw new Error(`Material ${materialId} not found`);
+
+    await deleteImage(materialToDelete.srcId);
+
+    const filtered = materials.filter(m => m.id !== materialId);
+    const renumbered = filtered
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+      .map((m, index) => ({ ...m, number: index + 1 }));
+
+    await saveAll(renumbered);
+  }
+
+  async function getNextNumber(): Promise<number> {
+    const materials = await getAll();
+    if (materials.length === 0) return 1;
+    return Math.max(...materials.map(m => m.number)) + 1;
+  }
+
+  async function clearAll(): Promise<void> {
+    const materials = await getAll();
+    await Promise.all(
+      materials.map(m => deleteImage(m.srcId).catch(err => {
+        console.warn(`Failed to delete material ${m.srcId}:`, err);
+      }))
+    );
+    await saveAll([]);
+  }
+
+  return { getAll, add, remove, getNextNumber, clearAll };
+}
+
 // ==================== 生成图片存储 ====================
 
-const generatedImageStore = createImageStore('drawnano_images');
+const generatedImageStore = createGeneratedImageStore('drawnano_images');
 
 export const getGeneratedImages = generatedImageStore.getAll;
 export const addGeneratedImage = generatedImageStore.add;

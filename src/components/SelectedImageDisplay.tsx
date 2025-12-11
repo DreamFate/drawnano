@@ -9,19 +9,17 @@ import {
   Edit,
   Loader2
 } from 'lucide-react';
-import { ConversationImageMeta } from '@/lib/schemas';
+import { ImageWithSrc } from '@/types';
 
 interface SelectedImageDisplayProps {
-  selectedImage: (ConversationImageMeta & { src: string }) | null;
+  selectedImage: ImageWithSrc | null;
   onClearSelection: () => void;
-  onImageEnlarge?: (image: ConversationImageMeta & { src: string }) => void;
   isGenerating?: boolean;
 }
 
 export function SelectedImageDisplay({
   selectedImage,
   onClearSelection,
-  onImageEnlarge,
   isGenerating = false
 }: SelectedImageDisplayProps) {
   if (!selectedImage) {
@@ -46,7 +44,8 @@ export function SelectedImageDisplay({
           <Edit className="w-4 h-4" />
           <span className="text-sm font-medium">选中的图片</span>
           <Badge variant="default" className="text-xs">
-            图片{selectedImage.number}
+            {selectedImage.type === 'generated' ? '生图' : '素材'}
+            {selectedImage.number}
           </Badge>
         </div>
 
@@ -80,19 +79,6 @@ export function SelectedImageDisplay({
                   <p className="text-sm">正在生成图片...</p>
                 </div>
               </div>
-            )}
-
-            {/* 放大按钮 */}
-            {onImageEnlarge && !isGenerating && (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => onImageEnlarge(selectedImage)}
-              >
-                <ZoomIn className="w-4 h-4 mr-1" />
-                放大查看
-              </Button>
             )}
           </div>
 

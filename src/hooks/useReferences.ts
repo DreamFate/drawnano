@@ -1,17 +1,16 @@
 import { useState, useCallback } from 'react';
-import { ReferenceItem } from '@/components/PromptInput';
-import { ConversationImageMeta, MaterialItem } from '@/lib/schemas';
+import { GeneratedImageMeta, MaterialMeta, ImageReference } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
 
 /**
  * 引用列表管理 hook
  */
 export function useReferences() {
-  const [referencedItems, setReferencedItems] = useState<ReferenceItem[]>([]);
+  const [referencedItems, setReferencedItems] = useState<ImageReference[]>([]);
 
   // 添加图片引用
   const addImageReference = useCallback(async (
-    image: ConversationImageMeta,
+    image: GeneratedImageMeta,
     selectedImageId: string | null,
     showWarning: (msg: string) => void
   ) => {
@@ -32,7 +31,7 @@ export function useReferences() {
     if (!src) return false;
 
     setReferencedItems(prev => [...prev, {
-      type: 'image',
+      type: 'generated',
       id: image.id,
       originalNumber: image.number,
       displayName: `生图${image.number}`,
@@ -43,7 +42,7 @@ export function useReferences() {
 
   // 添加素材引用
   const addMaterialReference = useCallback(async (
-    material: MaterialItem,
+    material: MaterialMeta,
     selectedImageId: string | null,
     showError: (msg: string) => void
   ) => {

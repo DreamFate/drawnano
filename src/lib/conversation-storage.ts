@@ -1,4 +1,4 @@
-import { ChatMessage, ChatMessageSerializedSchema } from './schemas';
+import { ChatMessage, ChatMessageSerializedSchema } from '@/types';
 import {
   getGeneratedImages,
   addGeneratedImage,

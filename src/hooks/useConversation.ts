@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
 import {
   ChatMessage,
-  ConversationImageMeta,
+  GeneratedImageMeta,
+  ImageMeta,
   ImageWithSrc,
-} from '@/lib/schemas';
+} from '@/types';
 import {
   getMessages,
   getImages,
@@ -15,7 +16,7 @@ import {
 
 export interface ChatState {
   messages: ChatMessage[];
-  images: ConversationImageMeta[];
+  images: GeneratedImageMeta[];
 }
 
 /**
@@ -23,7 +24,7 @@ export interface ChatState {
  */
 export function useConversation() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [images, setImages] = useState<ConversationImageMeta[]>([]);
+  const [images, setImages] = useState<GeneratedImageMeta[]>([]);
   const [selectedImage, setSelectedImage] = useState<ImageWithSrc | null>(null);
 
   // 初始化
@@ -51,8 +52,8 @@ export function useConversation() {
     }
   }, []);
 
-  // 选择图片
-  const selectImage = useCallback(async (imageMeta: ConversationImageMeta) => {
+  // 选择图片（支持生成图片和素材）
+  const selectImage = useCallback(async (imageMeta: ImageMeta) => {
     try {
       const src = await getImageSrc(imageMeta.srcId);
       if (src) {

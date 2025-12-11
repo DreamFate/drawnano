@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GenerateRequestSchema, type SegmentedObject, type MessageContentItem } from '@/types/api';
+import { GenerateRequestSchema, type MessageContentItem } from '@/types';
 import { ZodError } from 'zod';
 
 export async function POST(request: Request) {
@@ -12,7 +12,6 @@ export async function POST(request: Request) {
       prompt,
       messageContent,
       referenceImages,
-      segmentedObjects,
       conversationHistory,
       systemStyle,
       model = 'gemini-2.5-flash',
@@ -59,18 +58,6 @@ export async function POST(request: Request) {
     // 方式2: 传统方式(生成模式)
     else {
       let fullPrompt = prompt;
-
-      if (segmentedObjects && segmentedObjects.length > 0) {
-        // 视觉构图模式：添加精准位置和组合信息
-        const objectDescriptions = segmentedObjects
-          .filter((obj: SegmentedObject) => obj.selected)
-          .map((obj: SegmentedObject) =>
-            `将"${obj.mask.label}"精准放置在位置(${obj.position?.x || 0}, ${obj.position?.y || 0})处`
-          )
-          .join(', ');
-
-        fullPrompt += `. 精准构图要求: ${objectDescriptions}`;
-      }
 
       const content: MessageContentItem[] = [
         {

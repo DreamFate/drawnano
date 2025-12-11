@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { ReferenceItem, GenerationConfig } from '@/components/PromptInput';
 import {
   ChatMessage,
-  ConversationImageMeta,
+  GeneratedImageMeta,
   ImageWithSrc,
-  MaterialItem,
-} from '@/lib/schemas';
+  MaterialMeta,
+  ImageReference,
+  GenerationConfig
+} from '@/types';
 import {
   getMessages,
   getImages,
@@ -23,7 +24,7 @@ interface LastRequest {
   prompt: string;
   selectedImageId: string | null;
   selectedImageSrc: string | null;
-  referencedItems: ReferenceItem[];
+  referencedItems: ImageReference[];
   referenceImages: string[];
   userMessageId: string;
   generationConfig: GenerationConfig;
@@ -38,13 +39,13 @@ interface GenerateParams {
     'gemini-3-pro': string;
   };
   messages: ChatMessage[];
-  images: ConversationImageMeta[];
+  images: GeneratedImageMeta[];
   selectedImage: ImageWithSrc | null;
-  referencedItems: ReferenceItem[];
-  materials: MaterialItem[];
+  referencedItems: ImageReference[];
+  materials: MaterialMeta[];
   systemStyle: string;
   generationConfig: GenerationConfig;
-  onSuccess: (mainImageMeta: ConversationImageMeta, mainImageSrc: string) => void;
+  onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
   onError: (message: string) => void;
   onWarning: (message: string) => void;
 }
@@ -59,9 +60,9 @@ export function useImageGeneration() {
   // 准备引用图片列表
   const prepareReferenceImages = useCallback(async (
     selectedImage: ImageWithSrc | null,
-    referencedItems: ReferenceItem[],
-    images: ConversationImageMeta[],
-    materials: MaterialItem[],
+    referencedItems: ImageReference[],
+    images: GeneratedImageMeta[],
+    materials: MaterialMeta[],
     onWarning: (msg: string) => void
   ) => {
     const referenceImages: string[] = [];
@@ -78,8 +79,8 @@ export function useImageGeneration() {
     for (const item of referencedItems) {
       let isValid = false;
 
-      if (item.type === 'image') {
-        const image = images.find((img: ConversationImageMeta) => img.id === item.id);
+      if (item.type === 'generated') {
+        const image = images.find((img: GeneratedImageMeta) => img.id === item.id);
         if (image) {
           try {
             const src = await getImageSrc(image.srcId);
@@ -126,8 +127,7 @@ export function useImageGeneration() {
   // 保存生成的图片
   const saveGeneratedImages = useCallback(async (
     imageUrls: string[],
-    prompt: string,
-    userMessageId: string
+    prompt: string
   ) => {
     const lastImageUrl = imageUrls[imageUrls.length - 1];
     const otherImages = imageUrls.slice(0, -1);
@@ -136,13 +136,13 @@ export function useImageGeneration() {
     for (let i = 0; i < otherImages.length; i++) {
       const imageNumber = await getNextImageNumber();
       const imageId = crypto.randomUUID();
-      const imageMeta: ConversationImageMeta = {
+      const imageMeta: GeneratedImageMeta = {
         id: imageId,
         srcId: imageId,
         prompt: `${prompt} (图片${i + 1}/${imageUrls.length})`,
         timestamp: new Date(),
-        messageId: userMessageId,
         number: imageNumber,
+        type: 'generated',
       };
       await addImage(imageMeta, otherImages[i]);
     }
@@ -150,15 +150,15 @@ export function useImageGeneration() {
     // 保存主图
     const mainImageNumber = await getNextImageNumber();
     const mainImageId = crypto.randomUUID();
-    const mainImageMeta: ConversationImageMeta = {
+    const mainImageMeta: GeneratedImageMeta = {
       id: mainImageId,
       srcId: mainImageId,
       prompt: imageUrls.length > 1
         ? `${prompt} (主图 ${imageUrls.length}/${imageUrls.length})`
         : prompt,
       timestamp: new Date(),
-      messageId: userMessageId,
       number: mainImageNumber,
+      type: 'generated',
     };
     await addImage(mainImageMeta, lastImageUrl);
 
@@ -291,8 +291,7 @@ export function useImageGeneration() {
       // 保存图片
       const { mainImageMeta, mainImageSrc } = await saveGeneratedImages(
         imageUrls,
-        prompt,
-        userMessage.id
+        prompt
       );
 
       // 保存AI回复
@@ -335,7 +334,7 @@ export function useImageGeneration() {
     apiUrl: string,
     modelMapping: { 'gemini-2.5-flash': string; 'gemini-3-pro': string },
     systemStyle: string,
-    onSuccess: (mainImageMeta: ConversationImageMeta, mainImageSrc: string) => void,
+    onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void,
     onError: (message: string) => void
   ) => {
     if (!lastRequest) {
@@ -431,22 +430,16 @@ export function useImageGeneration() {
         return false;
       }
 
-      // 删除旧的AI回复和关联图片
+      // 删除旧的AI回复（保留旧图片，新图片作为增加）
       if (existingAIReply) {
-        if (existingAIReply.generatedImageId) {
-          const oldImage = currentImages.find((img: ConversationImageMeta) => img.id === existingAIReply.generatedImageId);
-          if (oldImage) {
-            await deleteImageById(oldImage.id);
-          }
-        }
+        // 不再删除旧图片，只删除对话消息
         await deleteMessage(existingAIReply.id);
       }
 
       // 保存新图片
       const { mainImageMeta, mainImageSrc } = await saveGeneratedImages(
         imageUrls,
-        prompt,
-        userMessageId
+        prompt
       );
 
       // 保存新的AI回复

@@ -7,7 +7,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { ImageGallery, GalleryImage } from '@/components/ImageGallery';
 import { ChatMessages } from '@/components/ChatMessages';
 import { SelectedImageDisplay } from '@/components/SelectedImageDisplay';
-import { PromptInput, GenerationConfig } from '@/components/PromptInput';
+import { PromptInput } from '@/components/PromptInput';
 import { StyleInput } from '@/components/StyleInput';
 import { SettingsDialog } from '@/components/SettingsDialog';
 
@@ -22,7 +22,7 @@ import {
 } from '@/hooks';
 
 // Types
-import { ConversationImageMeta } from '@/lib/schemas';
+import { GeneratedImageMeta, ImageMeta, GenerationConfig } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
 import { loadGenerationConfig, saveGenerationConfig, DEFAULT_GENERATION_CONFIG } from '@/lib/config-storage';
 import { AppSettings, loadSettings, DEFAULT_SETTINGS } from '@/lib/settings-storage';
@@ -119,24 +119,20 @@ export default function Home() {
 
   // 处理图片引用
   const handleImageReference = async (imageNumber: number) => {
-    const image = images.find((img: ConversationImageMeta) => img.number === imageNumber);
+    const image = images.find((img: GeneratedImageMeta) => img.number === imageNumber);
     if (!image) return;
     await addImageReference(image, selectedImage?.id || null, showWarning);
   };
 
-  // 处理图片选择修改
-  const handleImageSelect = async (imageMeta: ConversationImageMeta) => {
+  // 处理图片选择修改（统一处理生成图片和素材）
+  const handleImageSelect = async (imageMeta: ImageMeta) => {
     removeFromReferences(imageMeta.id);
     await selectImage(imageMeta);
   };
 
-  // 处理素材选择修改
-  const handleMaterialSelect = async (material: GalleryImage) => {
-    const src = await getImageSrc(material.srcId);
-    if (src) {
-      removeFromReferences(material.id);
-      setSelectedImage({ ...material, src });
-    }
+  // 处理素材选择修改（复用 handleImageSelect）
+  const handleMaterialSelect = async (material: ImageMeta) => {
+    await handleImageSelect(material);
   };
 
   // 插入素材引用
@@ -287,7 +283,7 @@ export default function Home() {
                   onImageReference={handleImageReference}
                   onImageSelect={handleImageSelect}
                   selectedImageId={selectedImage?.id}
-                  referencedIds={referencedItems.filter(r => r.type === 'image').map(r => r.id)}
+                  referencedIds={referencedItems.filter(r => r.type === 'generated').map(r => r.id)}
                   onDeleteImage={handleDeleteImage}
                 />
               </div>

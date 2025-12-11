@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { ConversationImageMeta } from '@/lib/schemas';
+import { ImageWithSrc } from '@/types';
 import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge";
 
@@ -65,7 +65,7 @@ interface StyleInputProps {
     isGeneratingStyle: boolean;
     isGenerating: boolean;
     apiKey: string;
-    selectedImage: (ConversationImageMeta & { src: string }) | null;
+    selectedImage: ImageWithSrc | null;
 }
 
 export function StyleInput({
