@@ -22,10 +22,10 @@ import {
 } from '@/hooks';
 
 // Types
-import { GeneratedImageMeta, ImageMeta, GenerationConfig } from '@/types';
+import { GeneratedImageMeta, ImageMeta, ModelConfig, ApiSetting } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
 import { loadGenerationConfig, saveGenerationConfig, DEFAULT_GENERATION_CONFIG } from '@/lib/config-storage';
-import { AppSettings, loadSettings, DEFAULT_SETTINGS } from '@/lib/settings-storage';
+import { loadSettings, DEFAULT_SETTINGS } from '@/lib/settings-storage';
 
 // UI 组件
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
@@ -89,14 +89,15 @@ export default function Home() {
   } = useStyleGeneration();
 
   // 本地状态
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<ApiSetting>(DEFAULT_SETTINGS);
   const [prompt, setPrompt] = useState('');
-  const [generationConfig, setGenerationConfig] = useState<GenerationConfig>(DEFAULT_GENERATION_CONFIG);
+  const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_GENERATION_CONFIG);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(false);
+  const [useSystemStyle, setUseSystemStyle] = useState(false);
 
   // 客户端加载配置
   useEffect(() => {
-    setGenerationConfig(loadGenerationConfig());
+    setModelConfig(loadGenerationConfig());
     const savedSettings = loadSettings();
     setSettings(savedSettings);
     // 首次进入无 API Key 时自动打开设置弹窗
@@ -106,8 +107,8 @@ export default function Home() {
   }, []);
 
   // 配置变更时保存到 localStorage
-  const handleConfigChange = (config: GenerationConfig) => {
-    setGenerationConfig(config);
+  const handleConfigChange = (config: ModelConfig) => {
+    setModelConfig(config);
     saveGenerationConfig(config);
   };
 
@@ -172,7 +173,7 @@ export default function Home() {
   };
 
   // 设置变更处理
-  const handleSettingsChange = (newSettings: AppSettings) => {
+  const handleSettingsChange = (newSettings: ApiSetting) => {
     setSettings(newSettings);
   };
 
@@ -182,11 +183,11 @@ export default function Home() {
       showError('请先选中图片并设置 API Key');
       return;
     }
-    await generateStyle(selectedImage.src, settings.apiKey, settings.apiUrl, settings.styleGeneratorModel, settings.styleGeneratorPrompt, showError);
+    await generateStyle(selectedImage.src, settings.apiKey, settings.apiUrl, settings.modelList.find((model) => model.modelselect === 'gemini-3-pro')?.model || 'gemini-3-pro', settings.styleGeneratorPrompt, showError);
   };
 
   // 重试
-  const handleRetry = async () => {
+  const handleRetry = async (messageId:string) => {
     if (!lastRequest || !settings.apiKey.trim()) {
       showError('无法重试');
       return;
@@ -195,8 +196,9 @@ export default function Home() {
     await retryGeneration(
       settings.apiKey,
       settings.apiUrl,
-      settings.modelMapping,
-      systemStyle,
+      settings.modelList.find((model) => model.modelselect == lastRequest?.modelConfig.modelselect)?.model || 'gemini-3-pro-image',
+      useSystemStyle ? systemStyle : '',
+      messageId,
       async (mainImageMeta, mainImageSrc) => {
         await refreshChat(false);
         setSelectedImage({ ...mainImageMeta, src: mainImageSrc });
@@ -221,14 +223,14 @@ export default function Home() {
       prompt,
       apiKey: settings.apiKey,
       apiUrl: settings.apiUrl,
-      modelMapping: settings.modelMapping,
+      model: settings.modelList.find((model) => model.modelselect == modelConfig.modelselect)?.model || 'gemini-3-pro-image',
       messages,
       images,
       selectedImage,
       referencedItems,
       materials,
-      systemStyle,
-      generationConfig,
+      systemStyle: useSystemStyle ? systemStyle : '',
+      modelConfig,
       onSuccess: async (mainImageMeta, mainImageSrc) => {
         await refreshChat(false);
         setPrompt('');
@@ -352,6 +354,8 @@ export default function Home() {
             isGenerating={isGenerating}
             apiKey={settings.apiKey}
             selectedImage={selectedImage}
+            useSystemStyle={useSystemStyle}
+            onUseSystemStyleChange={setUseSystemStyle}
           />
         </div>
 
@@ -369,7 +373,7 @@ export default function Home() {
             onClearReferences={clearReferences}
             hasImages={images.length > 0}
             hasMaterials={materials.length > 0}
-            generationConfig={generationConfig}
+            modelConfig={modelConfig}
             onConfigChange={handleConfigChange}
           />
         </div>

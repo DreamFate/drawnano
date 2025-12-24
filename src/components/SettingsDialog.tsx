@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Settings, Key, Globe, Palette, Cpu, Eye, EyeOff } from 'lucide-react';
+import { Settings, Key, Globe, Palette, Cpu, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,19 +15,25 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { AppSettings, loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_STYLE_GENERATOR_PROMPT, DEFAULT_MODEL_MAPPING } from '@/lib/settings-storage';
+import { ApiSetting } from '@/types';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_STYLE_GENERATOR_PROMPT } from '@/lib/settings-storage';
+import { cleanInvalidGeneratedImages, cleanInvalidMaterials } from '@/lib/generated-image-storage';
+import { useToastNotification } from '@/hooks';
+
 
 interface SettingsDialogProps {
-  onSettingsChange: (settings: AppSettings) => void;
+  onSettingsChange: (settings: ApiSetting) => void;
   defaultOpen?: boolean;
 }
 
 export function SettingsDialog({ onSettingsChange, defaultOpen = false }: SettingsDialogProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [tempSettings, setTempSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<ApiSetting>(DEFAULT_SETTINGS);
+  const [tempSettings, setTempSettings] = useState<ApiSetting>(DEFAULT_SETTINGS);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const { showInfo, showSuccess, showError } = useToastNotification();
 
   // 初始化加载设置
   useEffect(() => {
@@ -60,6 +66,7 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
     setSettings(tempSettings);
     setHasApiKey(!!tempSettings.apiKey);
     onSettingsChange(tempSettings);
+    showSuccess('设置已保存');
     setOpen(false);
   };
 
@@ -67,9 +74,32 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
   const handleReset = () => {
     setTempSettings({
       ...DEFAULT_SETTINGS,
-      apiKey: tempSettings.apiKey, // 保留 API Key
-      apiUrl: tempSettings.apiUrl, // 保留 API URL
+      apiKey: tempSettings.apiKey,
+      apiUrl: tempSettings.apiUrl,
     });
+  };
+
+  // 清理失效图片
+  const handleCleanInvalidImages = async () => {
+    setIsCleaning(true);
+    try {
+      const [cleanedImages, cleanedMaterials] = await Promise.all([
+        cleanInvalidGeneratedImages(),
+        cleanInvalidMaterials()
+      ]);
+
+      const total = cleanedImages + cleanedMaterials;
+      if (total === 0) {
+        showInfo('未发现失效图片');
+      } else {
+        showSuccess(`已清理 ${cleanedImages} 张失效生图,${cleanedMaterials} 张失效素材`);
+      }
+    } catch (error) {
+      console.error('清理失效图片失败:', error);
+      showError('清理失败,请查看控制台');
+    } finally {
+      setIsCleaning(false);
+    }
   };
 
   return (
@@ -131,62 +161,87 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
               默认: {DEFAULT_SETTINGS.apiUrl}
             </p>
           </div>
-
-          {/* 模型映射 */}
-          <div className="space-y-2">
+          {/* 生图模型 */}
+          <div className="space-y-3">
             <Label className="flex items-center gap-2">
               <Cpu className="w-4 h-4" />
-              生图模型映射
+              生图模型
             </Label>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground w-28 flex-shrink-0">gemini-2.5-flash</span>
+
+            <div className="space-y-2 pl-2">
+              <div className="space-y-1">
+                <Label htmlFor="imageModelFlash" className="text-xs text-muted-foreground">
+                  Gemini 2.5 Flash Image 模型
+                </Label>
                 <Input
+                  id="imageModelFlash"
                   type="text"
-                  value={tempSettings.modelMapping['gemini-2.5-flash']}
-                  onChange={(e) => setTempSettings({
-                    ...tempSettings,
-                    modelMapping: { ...tempSettings.modelMapping, 'gemini-2.5-flash': e.target.value }
-                  })}
-                  placeholder={DEFAULT_MODEL_MAPPING['gemini-2.5-flash']}
+                  value={tempSettings.modelList.find(m => m.modelselect === 'gemini-2.5-flah-image')?.model || 'gemini-2.5-flash'}
+                  onChange={(e) => {
+                    const newModelList = [...tempSettings.modelList];
+                    const index = newModelList.findIndex(m => m.modelselect === 'gemini-2.5-flah-image');
+                    if (index >= 0) {
+                      newModelList[index] = { modelselect: 'gemini-2.5-flah-image', model: e.target.value };
+                    } else {
+                      newModelList.push({ modelselect: 'gemini-2.5-flah-image', model: e.target.value });
+                    }
+                    setTempSettings({ ...tempSettings, modelList: newModelList });
+                  }}
+                  placeholder="gemini-2.5-flash"
                   className="h-8 text-sm"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground w-28 flex-shrink-0">gemini-3-pro</span>
+
+              <div className="space-y-1">
+                <Label htmlFor="imageModelPro" className="text-xs text-muted-foreground">
+                  Gemini 3 Pro Image 模型
+                </Label>
                 <Input
+                  id="imageModelPro"
                   type="text"
-                  value={tempSettings.modelMapping['gemini-3-pro']}
-                  onChange={(e) => setTempSettings({
-                    ...tempSettings,
-                    modelMapping: { ...tempSettings.modelMapping, 'gemini-3-pro': e.target.value }
-                  })}
-                  placeholder={DEFAULT_MODEL_MAPPING['gemini-3-pro']}
+                  value={tempSettings.modelList.find(m => m.modelselect === 'gemini-3-pro-image')?.model || 'gemini-3-pro-image-preview'}
+                  onChange={(e) => {
+                    const newModelList = [...tempSettings.modelList];
+                    const index = newModelList.findIndex(m => m.modelselect === 'gemini-3-pro-image');
+                    if (index >= 0) {
+                      newModelList[index] = { modelselect: 'gemini-3-pro-image', model: e.target.value };
+                    } else {
+                      newModelList.push({ modelselect: 'gemini-3-pro-image', model: e.target.value });
+                    }
+                    setTempSettings({ ...tempSettings, modelList: newModelList });
+                  }}
+                  placeholder="gemini-3-pro-image-preview"
                   className="h-8 text-sm"
                 />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              将项目中的模型名映射到你的 API 实际模型名
-            </p>
           </div>
 
           {/* 生成风格模型 */}
           <div className="space-y-2">
-            <Label htmlFor="styleGeneratorModel" className="flex items-center gap-2">
+            <Label htmlFor="wordModel" className="flex items-center gap-2">
               <Cpu className="w-4 h-4" />
-              生成风格模型
+              文字模型
             </Label>
             <Input
-              id="styleGeneratorModel"
+              id="wordModel"
               type="text"
-              value={tempSettings.styleGeneratorModel}
-              onChange={(e) => setTempSettings({ ...tempSettings, styleGeneratorModel: e.target.value })}
-              placeholder="gemini-2.5-flash"
+              value={tempSettings.modelList.find(m => m.modelselect === 'gemini-3-pro')?.model || 'gemini-3-pro'}
+              onChange={(e) => {
+                const newModelList = [...tempSettings.modelList];
+                const index = newModelList.findIndex(m => m.modelselect === 'gemini-3-pro');
+                if (index >= 0) {
+                  newModelList[index] = { modelselect: 'gemini-3-pro', model: e.target.value };
+                } else {
+                  newModelList.push({ modelselect: 'gemini-3-pro', model: e.target.value });
+                }
+                setTempSettings({ ...tempSettings, modelList: newModelList });
+              }}
+              placeholder="gemini-3-pro"
               className="h-8 text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              点击"生成风格"按钮时使用的模型，默认: gemini-2.5-flash
+              点击"生成风格"按钮时,"文本"模式下使用的模型，默认: gemini-3-pro
             </p>
           </div>
 
@@ -206,6 +261,28 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
             <p className="text-xs text-muted-foreground">
               点击"生成风格"按钮时使用的系统提示词
             </p>
+          </div>
+
+          {/* 清理失效图片 */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4" />
+              数据清理
+            </Label>
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCleanInvalidImages}
+                disabled={isCleaning}
+                className="w-full"
+              >
+                {isCleaning ? '清理中...' : '清理失效图片'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                清理因浏览器清理导致数据丢失仍有索引的失效图片
+              </p>
+            </div>
           </div>
         </div>
 

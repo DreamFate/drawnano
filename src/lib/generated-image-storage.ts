@@ -4,7 +4,7 @@ import {
   MaterialMeta,
   MaterialMetaSerializedSchema,
 } from '@/types';
-import { storeImage, getImage, deleteImage } from './image-storage';
+import { storeImage, getImage, deleteImage, getAllImageIds } from './image-storage';
 
 /**
  * 创建生成图片存储
@@ -147,5 +147,60 @@ export async function getImageSrc(srcId: string): Promise<string | null> {
   } catch (error) {
     console.error('Failed to get image src:', error);
     return null;
+  }
+}
+
+// 清理失效的生成图片
+export async function cleanInvalidGeneratedImages(): Promise<number> {
+  try {
+    const allImageIds = await getAllImageIds();
+    const imageIdSet = new Set(allImageIds);
+    const images = await getGeneratedImages();
+
+    const invalidImages = images.filter(img => !imageIdSet.has(img.srcId));
+
+    if (invalidImages.length > 0) {
+      const validImages = images.filter(img => imageIdSet.has(img.srcId));
+      const renumbered = validImages
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+        .map((img, index) => ({ ...img, number: index + 1 }));
+
+      localStorage.setItem('drawnano_images', JSON.stringify(renumbered));
+    }
+
+    return invalidImages.length;
+  } catch (error) {
+    console.error('Failed to clean invalid generated images:', error);
+    throw error;
+  }
+}
+
+// 清理失效的素材
+export async function cleanInvalidMaterials(): Promise<number> {
+  try {
+    const allImageIds = await getAllImageIds();
+    const imageIdSet = new Set(allImageIds);
+    const stored = localStorage.getItem('drawnano_materials');
+    if (!stored) return 0;
+
+    const materials: MaterialMeta[] = JSON.parse(stored).map((item: unknown) =>
+      MaterialMetaSerializedSchema.parse(item)
+    );
+
+    const invalidMaterials = materials.filter((m: MaterialMeta) => !imageIdSet.has(m.srcId));
+
+    if (invalidMaterials.length > 0) {
+      const validMaterials = materials.filter((m: MaterialMeta) => imageIdSet.has(m.srcId));
+      const renumbered = validMaterials
+        .sort((a: MaterialMeta, b: MaterialMeta) => a.timestamp.getTime() - b.timestamp.getTime())
+        .map((m: MaterialMeta, index: number) => ({ ...m, number: index + 1 }));
+
+      localStorage.setItem('drawnano_materials', JSON.stringify(renumbered));
+    }
+
+    return invalidMaterials.length;
+  } catch (error) {
+    console.error('Failed to clean invalid materials:', error);
+    throw error;
   }
 }

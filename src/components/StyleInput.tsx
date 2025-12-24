@@ -13,12 +13,6 @@ import {
 } from "@/components/ui/input-group"
 
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from "@/components/ui/tooltip"
-
-import {
     Dialog,
     DialogContent,
     DialogHeader,
@@ -28,7 +22,9 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import { Maximize2 } from "lucide-react"
+import { useToastNotification } from '@/hooks';
 
 const STYLE_SLOTS_KEY = 'drawnano_style_slots';
 
@@ -66,6 +62,8 @@ interface StyleInputProps {
     isGenerating: boolean;
     apiKey: string;
     selectedImage: ImageWithSrc | null;
+    useSystemStyle: boolean;
+    onUseSystemStyleChange: (value: boolean) => void;
 }
 
 export function StyleInput({
@@ -75,7 +73,9 @@ export function StyleInput({
     isGeneratingStyle,
     isGenerating,
     apiKey,
-    selectedImage
+    selectedImage,
+    useSystemStyle,
+    onUseSystemStyleChange
 }: StyleInputProps) {
     // 使用固定默认值避免 SSR hydration 不匹配
     const [styleSlots, setStyleSlots] = useState<StyleSlot[]>(
@@ -84,6 +84,7 @@ export function StyleInput({
     const [activeSlot, setActiveSlot] = useState<number>(1); // 默认选中槽位1
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogContent, setDialogContent] = useState('');
+    const { showInfo, showSuccess, showError } = useToastNotification();
 
     const prevIsGeneratingStyle = useRef(isGeneratingStyle);
 
@@ -116,6 +117,10 @@ export function StyleInput({
         const slot = styleSlots.find(s => s.id === slotId);
         setActiveSlot(slotId);
         onSystemStyleChange(slot?.content||'');
+        // 选择其他槽位时自动开启使用系统提示词
+        if (slot?.content) {
+            onUseSystemStyleChange(true);
+        }
     };
 
     // 清空当前输入框
@@ -124,12 +129,15 @@ export function StyleInput({
     };
 
     // 保存到当前槽位
-    const handleSave = () => {
+    const handleSave = (content?: string) => {
+        const contentToSave = content ?? systemStyle;
         const newSlots = styleSlots.map(s =>
-            s.id === activeSlot ? { ...s, content: systemStyle } : s
+            s.id === activeSlot ? { ...s, content: contentToSave } : s
         );
         setStyleSlots(newSlots);
         saveStyleSlots(newSlots);
+        onUseSystemStyleChange(true);
+        showSuccess('保存成功');
     };
 
     return (
@@ -138,7 +146,7 @@ export function StyleInput({
                 <InputGroupTextarea
                     value={systemStyle}
                     onChange={(e) => onSystemStyleChange(e.target.value)}
-                    placeholder="描述整体画面风格，如：赛博朋克风格，霓虹灯光，雨夜城市..."
+                    placeholder="描述整体画面风格或选择一张图片生成风格"
                     className="flex-1 h-[120px] min-h-[120px] max-h-[120px] resize-none text-sm overflow-y-auto"
                     disabled={isGenerating || isGeneratingStyle}
                 />
@@ -158,20 +166,29 @@ export function StyleInput({
                             </Badge>
                         ))}
                     </div>
-                    <InputGroupButton
-                        variant="ghost"
-                        size="sm"
-                        onClick={onGenerateStyle}
-                        disabled={!selectedImage || isGeneratingStyle || !apiKey.trim() || isGenerating}
-                        className="h-6 px-2 text-xs ml-auto"
-
-                    >
-                        {isGeneratingStyle ? (
-                            <><Spinner />生成中...</>
-                        ) : (
-                            <>生成风格</>
-                        )}
-                    </InputGroupButton>
+                    <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-1.5">
+                            <Switch
+                                checked={useSystemStyle}
+                                onCheckedChange={onUseSystemStyleChange}
+                                disabled={isGenerating || isGeneratingStyle}
+                                className="scale-90"
+                            />
+                        </div>
+                        <InputGroupButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={onGenerateStyle}
+                            disabled={!selectedImage || isGeneratingStyle || !apiKey.trim() || isGenerating}
+                            className="h-6 px-2 text-xs"
+                        >
+                            {isGeneratingStyle ? (
+                                <><Spinner />生成中...</>
+                            ) : (
+                                <>生成风格</>
+                            )}
+                        </InputGroupButton>
+                    </div>
                 </InputGroupAddon>
                 <InputGroupAddon align="block-end">
                     <Dialog open={dialogOpen} onOpenChange={(open) => {
@@ -196,7 +213,7 @@ export function StyleInput({
                             <Textarea
                                 value={dialogContent}
                                 onChange={(e) => setDialogContent(e.target.value)}
-                                placeholder="描述整体画面风格，如：赛博朋克风格，霓虹灯光，雨夜城市..."
+                                placeholder="描述整体画面风格或选择一张图片生成风格"
                                 className="flex-1 min-h-[200px] resize-none text-sm overflow-y-auto"
                             />
                             <DialogFooter>
@@ -209,6 +226,7 @@ export function StyleInput({
                                 <Button
                                     onClick={() => {
                                         onSystemStyleChange(dialogContent);
+                                        handleSave(dialogContent);
                                         setDialogOpen(false);
                                     }}
                                 >
@@ -230,7 +248,7 @@ export function StyleInput({
                     <InputGroupButton
                         variant="outline"
                         size="sm"
-                        onClick={handleSave}
+                        onClick={() => handleSave()}
                         disabled={isGenerating || isGeneratingStyle}
                     >
                         保存

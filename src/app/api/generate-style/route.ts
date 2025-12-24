@@ -13,28 +13,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'API key is required' }, { status: 401 });
     }
 
-    const DEFAULT_API_URL = 'https://openai.weavex.tech/v1/chat/completions';
-    const API_URL = apiUrl || DEFAULT_API_URL;
+    // 解析base64图片
+    const match = imageData.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+    if (!match) {
+      return NextResponse.json({ error: '无效的图片格式' }, { status: 400 });
+    }
+    const mimeType = `image/${match[1]}`;
+    const base64Data = match[2];
 
-    const requestBody = {
-      model: styleGeneratorModel || 'gemini-2.5-flash',
-      stream: true,
-      messages: [
-        {
-          role: 'system',
-          content: styleGeneratorPrompt
-        },
+    // 构建Gemini API URL
+    const actualModel = styleGeneratorModel || 'gemini-2.0-flash';
+    const DEFAULT_API_URL = 'https://aiplatform.googleapis.com/v1/publishers/google';
+    const baseUrl = apiUrl || DEFAULT_API_URL;
+    const API_URL = `${baseUrl}/models/${actualModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+
+    // 构建Gemini请求体
+    const requestBody: any = {
+      contents: [
         {
           role: 'user',
-          content: [
+          parts: [
+            { text: '请分析这张图片的整体视觉风格，生成风格描述提示词：' },
             {
-              type: 'text',
-              text: '请分析这张图片的整体视觉风格，生成风格描述提示词：'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageData
+              inlineData: {
+                mimeType,
+                data: base64Data
               }
             }
           ]
@@ -42,34 +45,39 @@ export async function POST(request: Request) {
       ]
     };
 
+    // 添加系统指令
+    if (styleGeneratorPrompt) {
+      requestBody.systemInstruction = {
+        parts: [{ text: styleGeneratorPrompt }]
+      };
+    }
+
     // 日志：完整请求数据（图片简略显示）
     const logRequestBody = {
       ...requestBody,
-      messages: requestBody.messages.map(msg => {
-        if (Array.isArray(msg.content)) {
-          return {
-            ...msg,
-            content: msg.content.map((item: any) => {
-              if (item.type === 'image_url' && item.image_url?.url) {
-                return {
-                  ...item,
-                  image_url: { url: `${item.image_url.url.substring(0, 50)}...(length: ${item.image_url.url.length})` }
-                };
+      contents: requestBody.contents.map((content: any) => ({
+        ...content,
+        parts: content.parts.map((part: any) => {
+          if (part.inlineData?.data) {
+            return {
+              ...part,
+              inlineData: {
+                ...part.inlineData,
+                data: part.inlineData.data.substring(0, 50) + '...[truncated]'
               }
-              return item;
-            })
-          };
-        }
-        return msg;
-      })
+            };
+          }
+          return part;
+        })
+      }))
     };
     console.log('[generate-style] request body:', JSON.stringify(logRequestBody, null, 2));
+    console.log('[generate-style] API URL:', API_URL.replace(apiKey, '***'));
 
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody),
     });
@@ -118,10 +126,15 @@ export async function POST(request: Request) {
 
               try {
                 const data = JSON.parse(dataStr);
-                const content = data.choices?.[0]?.delta?.content;
-                if (content) {
-                  console.log('[generate-style] content:', content); // 日志：提取的内容
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                // Gemini格式: candidates[0].content.parts
+                const parts = data.candidates?.[0]?.content?.parts;
+                if (parts && Array.isArray(parts)) {
+                  for (const part of parts) {
+                    if (part.text) {
+                      console.log('[generate-style] content:', part.text);
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: part.text })}\n\n`));
+                    }
+                  }
                 }
               } catch (e) {
                 // 忽略解析错误

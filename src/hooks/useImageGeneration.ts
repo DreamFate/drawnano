@@ -5,7 +5,8 @@ import {
   ImageWithSrc,
   MaterialMeta,
   ImageReference,
-  GenerationConfig
+  ModelConfig,
+  ApiErrorMessage
 } from '@/types';
 import {
   getMessages,
@@ -19,6 +20,7 @@ import {
   deleteErrorMessages,
 } from '@/lib/conversation-storage';
 import { parseSSEStream } from '@/lib/sse-parser';
+import { on } from 'events';
 
 interface LastRequest {
   prompt: string;
@@ -26,25 +28,22 @@ interface LastRequest {
   selectedImageSrc: string | null;
   referencedItems: ImageReference[];
   referenceImages: string[];
-  userMessageId: string;
-  generationConfig: GenerationConfig;
+  modelConfig: ModelConfig;
+  conversationHistory: any[];
 }
 
 interface GenerateParams {
   prompt: string;
   apiKey: string;
   apiUrl: string;
-  modelMapping: {
-    'gemini-2.5-flash': string;
-    'gemini-3-pro': string;
-  };
+  model: string;
   messages: ChatMessage[];
   images: GeneratedImageMeta[];
   selectedImage: ImageWithSrc | null;
   referencedItems: ImageReference[];
   materials: MaterialMeta[];
   systemStyle: string;
-  generationConfig: GenerationConfig;
+  modelConfig: ModelConfig;
   onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
   onError: (message: string) => void;
   onWarning: (message: string) => void;
@@ -165,20 +164,142 @@ export function useImageGeneration() {
     return { mainImageMeta, mainImageSrc: lastImageUrl };
   }, []);
 
+  // 执行生成请求(共享逻辑)
+  const performGeneration = useCallback(async ({
+    prompt,
+    apiKey,
+    apiUrl,
+    model,
+    selectedImageId,
+    referenceImages,
+    conversationHistory,
+    systemStyle,
+    modelConfig,
+    onSuccess,
+    onError,
+    onWarning,
+  }: {
+    prompt: string;
+    apiKey: string;
+    apiUrl: string;
+    model: string;
+    selectedImageId?: string | null;
+    referenceImages: string[];
+    conversationHistory: any[];
+    systemStyle: string;
+    modelConfig: ModelConfig;
+    onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
+    onError?: (message: string) => void;
+    onWarning?: (message: string) => void;
+  }) => {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      body: JSON.stringify({
+        prompt,
+        selectedImageId,
+        referenceImages,
+        model,
+        conversationHistory,
+        systemStyle: systemStyle?.trim() || undefined,
+        modelConfig,
+        apiUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      let apiError: ApiErrorMessage = {
+        code: 'GENERATION_FAILED',
+        messages: '生成失败,请检查API Key是否正确',
+        status: `HTTP ${response.status}`
+      };
+
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          if (typeof errorData.error === 'object' && errorData.error.code) {
+            apiError = errorData.error;
+          } else if (typeof errorData.error === 'string') {
+            apiError.messages = errorData.error;
+          }
+        }
+      } catch {
+        // 忽略解析错误,使用默认错误信息
+      }
+
+      // 保存错误消息到对话记录
+      const errorAssistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'model',
+        text: '',
+        timestamp: new Date(),
+        error: apiError,
+      };
+      await addMessage(errorAssistantMessage);
+      return false;
+    }
+
+    // 解析流式响应
+    const { textContent , thoughtContent, imageUrls } = await parseSSEStream(response);
+
+    // 保存AI回复
+    let assistantMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'model',
+      thought: thoughtContent,
+      text: textContent,
+      timestamp: new Date()
+    };
+
+    // 文字模型直接返回
+    if (modelConfig.modeltype === 'word' && imageUrls.length === 0) {
+      if (textContent) {
+        await addMessage(assistantMessage);
+        return true;
+      }else {
+        assistantMessage.text = '本次未返回内容,请尝试重试'
+        await addMessage(assistantMessage);
+        return false;
+      }
+    }
+
+    if (imageUrls.length === 0) {
+      assistantMessage.text = '本次未生成图片,请尝试重试'
+      await addMessage(assistantMessage);
+      return false;
+    }
+
+
+    // 保存图片
+    const { mainImageMeta, mainImageSrc } = await saveGeneratedImages(
+      imageUrls,
+      prompt
+    );
+
+    assistantMessage.isImage = true;
+    await addMessage(assistantMessage);
+
+    onSuccess(mainImageMeta, mainImageSrc);
+    return true;
+  }, [saveGeneratedImages]);
+
   // 生成图片
   const generateImage = useCallback(async (params: GenerateParams) => {
     const {
       prompt,
       apiKey,
       apiUrl,
-      modelMapping,
+      model,
       messages,
       images,
       selectedImage,
       referencedItems,
       materials,
       systemStyle,
-      generationConfig,
+      modelConfig,
       onSuccess,
       onError,
       onWarning,
@@ -193,8 +314,8 @@ export function useImageGeneration() {
       // 保存用户消息
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        type: 'user',
-        content: prompt,
+        role: 'user',
+        text: prompt,
         timestamp: new Date(),
       };
       await addMessage(userMessage);
@@ -208,6 +329,13 @@ export function useImageGeneration() {
         onWarning
       );
 
+      // 构建对话历史
+      const conversationHistory = messages
+        .map((msg: ChatMessage) => ({
+          role: msg.role,
+          parts: [{ text: msg.text }],
+        }));
+
       // 保存请求参数用于重试
       setLastRequest({
         prompt,
@@ -215,125 +343,41 @@ export function useImageGeneration() {
         selectedImageSrc: selectedImage?.src || null,
         referencedItems: [...referencedItems],
         referenceImages,
-        userMessageId: userMessage.id,
-        generationConfig,
+        modelConfig,
+        conversationHistory,
       });
 
-      // 构建对话历史
-      const conversationHistory = messages
-        .slice(-10)
-        .map((msg: ChatMessage) => ({
-          role: msg.type === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        }));
-
-      // 调用API
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-        },
-        body: JSON.stringify({
-          prompt: selectedImage ? `基于图1进行修改：${prompt}` : prompt,
-          selectedImageId: selectedImage?.id,
-          referenceImages,
-          conversationHistory,
-          systemStyle: systemStyle.trim() || undefined,
-          model: generationConfig.model,
-          aspectRatio: generationConfig.aspectRatio,
-          resolution: generationConfig.resolution,
-          apiUrl,
-          modelMapping,
-        }),
+      // 执行生成请求
+      return await performGeneration({
+        prompt,
+        apiKey,
+        apiUrl,
+        model,
+        selectedImageId: selectedImage?.id,
+        referenceImages,
+        conversationHistory,
+        systemStyle,
+        modelConfig,
+        onSuccess,
+        onError,
+        onWarning,
       });
-
-      if (!response.ok) {
-        let errorMsg = '生成失败,请检查API Key是否正确';
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMsg = errorData.error;
-          }
-        } catch {
-          // 忽略解析错误
-        }
-        // 保存错误消息到对话记录
-        const errorAssistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          type: 'assistant',
-          content: '',
-          timestamp: new Date(),
-          error: errorMsg,
-        };
-        await addMessage(errorAssistantMessage);
-        onError(errorMsg);
-        return false;
-      }
-
-      // 解析流式响应
-      const { textContent, imageUrls } = await parseSSEStream(response);
-      const description = textContent || '图片已生成';
-
-      if (imageUrls.length === 0) {
-        // 未生成图片
-        const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          type: 'assistant',
-          content: description || '抱歉,本次未能生成图片,请尝试调整提示词后重试',
-          timestamp: new Date(),
-        };
-        await addMessage(assistantMessage);
-        onError('本次未生成图片,已保存对话记录');
-        return false;
-      }
-
-      // 保存图片
-      const { mainImageMeta, mainImageSrc } = await saveGeneratedImages(
-        imageUrls,
-        prompt
-      );
-
-      // 保存AI回复
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        type: 'assistant',
-        content: imageUrls.length > 1
-          ? `${description}\n\n生成了${imageUrls.length}张图片,已使用最后一张作为修改主图`
-          : description,
-        timestamp: new Date(),
-        generatedImageId: mainImageMeta.id,
-      };
-      await addMessage(assistantMessage);
-
-      onSuccess(mainImageMeta, mainImageSrc);
-      return true;
-
     } catch (error) {
       console.error('生成失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '生成失败，请重试';
-      // 保存错误消息到对话记录
-      const errorAssistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        type: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        error: errorMessage,
-      };
-      await addMessage(errorAssistantMessage);
-      onError(errorMessage);
+      onError?.('生成失败，请联系管理员');
       return false;
     } finally {
       setIsGenerating(false);
     }
-  }, [prepareReferenceImages, saveGeneratedImages]);
+  }, [prepareReferenceImages, performGeneration]);
 
   // 重试
   const retryGeneration = useCallback(async (
     apiKey: string,
     apiUrl: string,
-    modelMapping: { 'gemini-2.5-flash': string; 'gemini-3-pro': string },
+    model: string,
     systemStyle: string,
+    messageId: string,
     onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void,
     onError: (message: string) => void
   ) => {
@@ -342,139 +386,35 @@ export function useImageGeneration() {
       return false;
     }
 
-    const { userMessageId, referenceImages, prompt, selectedImageId, generationConfig } = lastRequest;
+    const { referenceImages, prompt, selectedImageId, modelConfig , conversationHistory } = lastRequest;
 
     setIsGenerating(true);
 
     try {
-      const [currentMessages, currentImages] = await Promise.all([getMessages(), getImages()]);
+      await deleteMessage(messageId);
 
-      const userMsgIndex = currentMessages.findIndex((m: ChatMessage) => m.id === userMessageId);
-      if (userMsgIndex === -1) {
-        throw new Error('找不到原始消息');
-      }
-
-      // 构建对话历史（不包含要重试的消息）
-      const conversationHistory = currentMessages
-        .slice(0, userMsgIndex)
-        .slice(-10)
-        .map((msg: ChatMessage) => ({
-          role: msg.type === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        }));
-
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-        },
-        body: JSON.stringify({
-          prompt: selectedImageId ? `基于图1进行修改：${prompt}` : prompt,
-          selectedImageId,
-          referenceImages,
-          conversationHistory,
-          systemStyle: systemStyle.trim() || undefined,
-          model: generationConfig.model,
-          aspectRatio: generationConfig.aspectRatio,
-          resolution: generationConfig.resolution,
-          apiUrl,
-          modelMapping,
-        }),
+      // 执行生成请求
+      return await performGeneration({
+        prompt,
+        apiKey,
+        apiUrl,
+        model,
+        selectedImageId,
+        referenceImages,
+        conversationHistory,
+        systemStyle,
+        modelConfig,
+        onSuccess,
+        onError,
       });
-
-      if (!response.ok) {
-        let errorMsg = '重试失败,请检查API Key是否正确';
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMsg = errorData.error;
-          }
-        } catch {
-          // 忽略解析错误
-        }
-        // 保存错误消息到对话记录
-        const errorAssistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          type: 'assistant',
-          content: '',
-          timestamp: new Date(),
-          error: errorMsg,
-        };
-        await addMessage(errorAssistantMessage);
-        onError(errorMsg);
-        return false;
-      }
-
-      const { textContent, imageUrls } = await parseSSEStream(response);
-      const description = textContent || '图片已生成';
-
-      // 查找旧的AI回复
-      const existingAIReply = currentMessages.find(
-        (m: ChatMessage, idx: number) => idx === userMsgIndex + 1 && m.type === 'assistant'
-      );
-
-      if (imageUrls.length === 0) {
-        const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          type: 'assistant',
-          content: description || '抱歉,本次未能生成图片,请尝试调整提示词后重试',
-          timestamp: new Date(),
-        };
-
-        if (existingAIReply) {
-          await deleteMessage(existingAIReply.id);
-        }
-        await addMessage(assistantMessage);
-        onError('本次未生成图片,已保存对话记录');
-        return false;
-      }
-
-      // 删除旧的AI回复（保留旧图片，新图片作为增加）
-      if (existingAIReply) {
-        // 不再删除旧图片，只删除对话消息
-        await deleteMessage(existingAIReply.id);
-      }
-
-      // 保存新图片
-      const { mainImageMeta, mainImageSrc } = await saveGeneratedImages(
-        imageUrls,
-        prompt
-      );
-
-      // 保存新的AI回复
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        type: 'assistant',
-        content: imageUrls.length > 1
-          ? `${description}\n\n生成了${imageUrls.length}张图片,已使用最后一张作为修改主图`
-          : description,
-        timestamp: new Date(),
-        generatedImageId: mainImageMeta.id,
-      };
-      await addMessage(assistantMessage);
-
-      onSuccess(mainImageMeta, mainImageSrc);
-      return true;
-
     } catch (error) {
       console.error('重试失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '重试失败，请重试';
-      // 保存错误消息到对话记录
-      const errorAssistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        type: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        error: errorMessage,
-      };
-      await addMessage(errorAssistantMessage);
-      onError(errorMessage);
+      onError?.('重试失败，请联系管理员');
       return false;
     } finally {
       setIsGenerating(false);
     }
-  }, [lastRequest, saveGeneratedImages]);
+  }, [lastRequest, performGeneration]);
 
   return {
     isGenerating,

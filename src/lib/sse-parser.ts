@@ -3,6 +3,7 @@
  */
 export interface SSEParseResult {
   textContent: string;
+  thoughtContent: string;
   imageUrls: string[];
 }
 
@@ -25,6 +26,7 @@ export async function parseSSEStream(
   }
 
   let textContent = '';
+  let thoughtContent = '';
   const imageUrls: string[] = [];
   let buffer = '';
 
@@ -44,8 +46,9 @@ export async function parseSSEStream(
 
       try {
         const chunk = JSON.parse(dataStr);
-
-        if (chunk.type === 'text') {
+        if (chunk.type === 'thought') {
+          thoughtContent += chunk.content;
+        } else if (chunk.type === 'text') {
           textContent += chunk.content;
           onText?.(chunk.content);
         } else if (chunk.type === 'image') {
@@ -60,5 +63,5 @@ export async function parseSSEStream(
     }
   }
 
-  return { textContent, imageUrls };
+  return { textContent, thoughtContent, imageUrls };
 }

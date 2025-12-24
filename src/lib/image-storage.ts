@@ -101,3 +101,21 @@ export async function deleteImage(id: string): Promise<void> {
     };
   });
 }
+
+// 获取所有图片ID
+export async function getAllImageIds(): Promise<string[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAllKeys();
+
+    request.onsuccess = () => {
+      resolve(request.result as string[]);
+    };
+
+    request.onerror = (event) => {
+      reject('Failed to retrieve all image IDs: ' + (event.target as IDBRequest).error);
+    };
+  });
+}
