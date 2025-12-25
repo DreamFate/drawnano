@@ -20,16 +20,15 @@ import {
   deleteErrorMessages,
 } from '@/lib/conversation-storage';
 import { parseSSEStream } from '@/lib/sse-parser';
+import { storeThoughtSignature, getThoughtSignature } from '@/lib/thought-signature-storage';
 import { on } from 'events';
 
 interface LastRequest {
   prompt: string;
-  selectedImageId: string | null;
-  selectedImageSrc: string | null;
+  selectedImage: ImageWithSrc | null;
   referencedItems: ImageReference[];
-  referenceImages: string[];
   modelConfig: ModelConfig;
-  conversationHistory: any[];
+  usermessageId: string;
 }
 
 interface GenerateParams {
@@ -44,6 +43,20 @@ interface GenerateParams {
   materials: MaterialMeta[];
   systemStyle: string;
   modelConfig: ModelConfig;
+  onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
+  onError: (message: string) => void;
+  onWarning: (message: string) => void;
+}
+
+interface retryGenerationParams{
+  apiKey: string;
+  apiUrl: string;
+  model: string;
+  messages: ChatMessage[];
+  messageId: string;
+  images: GeneratedImageMeta[];
+  materials: MaterialMeta[];
+  systemStyle: string;
   onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
   onError: (message: string) => void;
   onWarning: (message: string) => void;
@@ -164,6 +177,66 @@ export function useImageGeneration() {
     return { mainImageMeta, mainImageSrc: lastImageUrl };
   }, []);
 
+  // 保存思路签名到 IndexedDB
+  const saveThoughtSignatureToStorage = useCallback(async (
+    thoughtSignature: string
+  ): Promise<string | undefined> => {
+    if (!thoughtSignature) {
+      return undefined;
+    }
+
+    const thoughtSignatureId = crypto.randomUUID();
+    try {
+      await storeThoughtSignature(thoughtSignatureId, thoughtSignature);
+      console.log('[思路签名] 已保存到 IndexedDB:', {
+        id: thoughtSignatureId,
+        size: `${(thoughtSignature.length / 1024).toFixed(2)} KB`
+      });
+      return thoughtSignatureId;
+    } catch (error) {
+      console.error('[思路签名] 保存失败:', error);
+      return undefined;
+    }
+  }, []);
+
+  // 构建对话历史(包含思路签名)
+  const buildConversationHistory = useCallback(async (
+    messages: ChatMessage[],
+    messageId?: string
+  ) => {
+    const history = [];
+
+    for (const msg of messages) {
+      // 跳过重试时用户发出的消息
+      if(messageId && msg.id === messageId){
+        continue;
+      }
+
+      const parts: { text: string; thoughtSignature?: string }[] = [{
+        text: msg.text
+      }];
+
+      // 如果有思路签名 ID,从 IndexedDB 加载内容
+      if (msg.thoughtSignatureId) {
+        try {
+          const signature = await getThoughtSignature(msg.thoughtSignatureId);
+          if (signature) {
+            parts[0].thoughtSignature = signature;
+          }
+        } catch (error) {
+          console.warn('[思路签名] 加载失败:', msg.thoughtSignatureId, error);
+        }
+      }
+
+      history.push({
+        role: msg.role,
+        parts
+      });
+    }
+
+    return history;
+  }, []);
+
   // 执行生成请求(共享逻辑)
   const performGeneration = useCallback(async ({
     prompt,
@@ -243,15 +316,20 @@ export function useImageGeneration() {
     }
 
     // 解析流式响应
-    const { textContent , thoughtContent, imageUrls } = await parseSSEStream(response);
+    const { textContent , thoughtContent, imageUrls, thoughtSignature, usageMetadata } = await parseSSEStream(response);
+
+    // 保存思路签名到 IndexedDB (如果有)
+    const thoughtSignatureId = await saveThoughtSignatureToStorage(thoughtSignature);
 
     // 保存AI回复
     let assistantMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'model',
       thought: thoughtContent,
+      thoughtSignatureId: thoughtSignatureId,
       text: textContent,
-      timestamp: new Date()
+      timestamp: new Date(),
+      usageMetadata: usageMetadata,
     };
 
     // 文字模型直接返回
@@ -284,7 +362,7 @@ export function useImageGeneration() {
 
     onSuccess(mainImageMeta, mainImageSrc);
     return true;
-  }, [saveGeneratedImages]);
+  }, [saveGeneratedImages, saveThoughtSignatureToStorage, buildConversationHistory]);
 
   // 生成图片
   const generateImage = useCallback(async (params: GenerateParams) => {
@@ -329,22 +407,16 @@ export function useImageGeneration() {
         onWarning
       );
 
-      // 构建对话历史
-      const conversationHistory = messages
-        .map((msg: ChatMessage) => ({
-          role: msg.role,
-          parts: [{ text: msg.text }],
-        }));
+      // 构建对话历史(从 IndexedDB 加载思路签名)
+      const conversationHistory = await buildConversationHistory(messages);
 
       // 保存请求参数用于重试
       setLastRequest({
         prompt,
-        selectedImageId: selectedImage?.id || null,
-        selectedImageSrc: selectedImage?.src || null,
+        selectedImage: selectedImage,
         referencedItems: [...referencedItems],
-        referenceImages,
         modelConfig,
-        conversationHistory,
+        usermessageId: userMessage.id,
       });
 
       // 执行生成请求
@@ -369,29 +441,44 @@ export function useImageGeneration() {
     } finally {
       setIsGenerating(false);
     }
-  }, [prepareReferenceImages, performGeneration]);
+  }, [prepareReferenceImages, performGeneration, buildConversationHistory]);
 
   // 重试
-  const retryGeneration = useCallback(async (
-    apiKey: string,
-    apiUrl: string,
-    model: string,
-    systemStyle: string,
-    messageId: string,
-    onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void,
-    onError: (message: string) => void
-  ) => {
+  const retryGeneration = useCallback(async (params: retryGenerationParams) => {
+    const {
+      apiKey,
+      apiUrl,
+      model,
+      messageId,
+      images,
+      materials,
+      systemStyle,
+      onSuccess,
+      onError,
+      onWarning,
+    } = params;
     if (!lastRequest) {
       onError('无法重试');
       return false;
     }
 
-    const { referenceImages, prompt, selectedImageId, modelConfig , conversationHistory } = lastRequest;
+    const { prompt, selectedImage, modelConfig , referencedItems, usermessageId} = lastRequest;
 
     setIsGenerating(true);
 
     try {
       await deleteMessage(messageId);
+      const messages = await getMessages();
+      // 准备引用图片
+      const referenceImages = await prepareReferenceImages(
+        selectedImage,
+        referencedItems,
+        images,
+        materials,
+        onWarning
+      );
+      // 构建对话历史(从 IndexedDB 加载思路签名)
+      const conversationHistory = await buildConversationHistory(messages,usermessageId);
 
       // 执行生成请求
       return await performGeneration({
@@ -399,13 +486,14 @@ export function useImageGeneration() {
         apiKey,
         apiUrl,
         model,
-        selectedImageId,
+        selectedImageId: selectedImage?.id,
         referenceImages,
         conversationHistory,
         systemStyle,
         modelConfig,
         onSuccess,
         onError,
+        onWarning,
       });
     } catch (error) {
       console.error('重试失败:', error);
@@ -414,7 +502,7 @@ export function useImageGeneration() {
     } finally {
       setIsGenerating(false);
     }
-  }, [lastRequest, performGeneration]);
+  }, [lastRequest, performGeneration, prepareReferenceImages, buildConversationHistory]);
 
   return {
     isGenerating,

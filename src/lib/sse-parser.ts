@@ -1,10 +1,14 @@
 /**
  * SSE 流式响应解析结果
  */
+
+import { UsageMetadata } from "@/types";
 export interface SSEParseResult {
   textContent: string;
   thoughtContent: string;
+  thoughtSignature: string;
   imageUrls: string[];
+  usageMetadata: UsageMetadata;
 }
 
 /**
@@ -27,6 +31,8 @@ export async function parseSSEStream(
 
   let textContent = '';
   let thoughtContent = '';
+  let thoughtSignature = '';
+  let usageMetadata: UsageMetadata = {};
   const imageUrls: string[] = [];
   let buffer = '';
 
@@ -46,16 +52,22 @@ export async function parseSSEStream(
 
       try {
         const chunk = JSON.parse(dataStr);
+
+
         if (chunk.type === 'thought') {
           thoughtContent += chunk.content;
         } else if (chunk.type === 'text') {
           textContent += chunk.content;
           onText?.(chunk.content);
+        } else if (chunk.type === 'thoughtSignature') {
+          thoughtSignature += chunk.content;
         } else if (chunk.type === 'image') {
           imageUrls.push(chunk.content);
           onImage?.(chunk.content);
         } else if (chunk.type === 'error') {
           console.warn('大模型返回错误:', chunk.message);
+        } else if (chunk.type === 'usageMetadata') {
+          usageMetadata = { ...usageMetadata, ...chunk.content };
         }
       } catch (e) {
         console.error('解析chunk失败:', e);
@@ -63,5 +75,5 @@ export async function parseSSEStream(
     }
   }
 
-  return { textContent, thoughtContent, imageUrls };
+  return { textContent, thoughtContent, imageUrls, thoughtSignature, usageMetadata };
 }

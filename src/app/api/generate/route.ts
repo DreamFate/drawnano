@@ -99,13 +99,11 @@ export async function POST(request: Request) {
       }
     }
 
-
-
     // 添加系统指令
     if (systemStyle && systemStyle.trim()) {
       requestBody.systemInstruction = {
         parts: [{
-          text: `你是一个专业的图像生成助手。请按照以下整体风格要求来生成图片：\n\n${systemStyle.trim()}\n\n请确保生成的图片符合上述风格描述。`
+          text: systemStyle.trim()
         }]
       };
     }
@@ -134,6 +132,12 @@ export async function POST(request: Request) {
                 ...part.inlineData,
                 data: part.inlineData.data.substring(0, 50) + '...[truncated]'
               }
+            };
+          }
+          if(part.thoughtSignature){
+            return {
+              ...part,
+              thoughtSignature: part.thoughtSignature.substring(0, 50) + '...[truncated]'
             };
           }
           return part;
@@ -194,6 +198,7 @@ export async function POST(request: Request) {
         let buffer = '';
         let textContent = '';
         let thoughtContent = '';
+        let thoughtSignature = '';
         const imageUrls: string[] = [];
 
         try {
@@ -204,28 +209,6 @@ export async function POST(request: Request) {
             }
 
             const rawText = decoder.decode(value, { stream: true });
-
-            // 智能日志：截断大数据
-            const logText = rawText.length > 500
-              ? `${rawText.substring(0, 500)}... [截断，总长度: ${rawText.length}]`
-              : rawText;
-
-            // 检测是否包含图片数据
-            const hasImageData = rawText.includes('"inlineData"') || rawText.includes('base64');
-            if (hasImageData) {
-              console.log('[generate] 收到图片数据块，长度:', rawText.length);
-              // 提取关键信息
-              try {
-                const match = rawText.match(/"mimeType":"([^"]+)"/);
-                if (match) {
-                  console.log('[generate] 图片类型:', match[1]);
-                }
-              } catch (e) {
-                // 忽略解析错误
-              }
-            } else {
-              console.log('[generate] raw chunk:', logText);
-            }
 
             buffer += rawText;
             const lines = buffer.split('\n');
@@ -243,6 +226,20 @@ export async function POST(request: Request) {
 
               try {
                 const data = JSON.parse(dataStr);
+
+                // 打印响应结构(不包含 parts 详细内容)
+                const logData = {
+                  ...data,
+                  candidates: data.candidates?.map((c: any) => ({
+                    ...c,
+                    content: {
+                      ...c.content,
+                      parts: `[${c.content?.parts?.length || 0} parts]`
+                    }
+                  }))
+                };
+                console.log('📦 Gemini 响应结构:', JSON.stringify(logData, null, 2));
+
                 // Gemini格式: candidates[0].content.parts
                 const parts = data.candidates?.[0]?.content?.parts;
 
@@ -275,6 +272,22 @@ export async function POST(request: Request) {
                         isLast: false
                       })}\n\n`));
                     }
+                    if (part.thoughtSignature){
+                      thoughtSignature += part.thoughtSignature
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                        type: 'thoughtSignature',
+                        content: part.thoughtSignature
+                      })}\n\n`));
+                    }
+
+                  }
+
+                  const usageMetadata = data.usageMetadata;
+                  if (usageMetadata&& usageMetadata.totalTokenCount){
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                      type: 'usageMetadata',
+                      content: usageMetadata
+                    })}\n\n`));
                   }
                 }
               } catch (e) {
@@ -289,6 +302,7 @@ export async function POST(request: Request) {
             文字内容: textContent || '(无文字)',
             思路总长度: thoughtContent.length,
             思路内容: thoughtContent || '(无思路)',
+            思路签名大小: thoughtSignature ? `${(thoughtSignature.length / 1024).toFixed(2)} KB` : '(无签名)',
             图片数量: imageUrls.length,
             图片列表: imageUrls.map((url, i) =>
               `图片${i+1}: `

@@ -5,13 +5,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Bot, Image as ImageIcon, Trash2, Eraser, RefreshCw, ChevronDown, Copy, AlertCircleIcon } from 'lucide-react';
+import { Bot, Image as ImageIcon, Eraser, ChevronDown, AlertCircleIcon } from 'lucide-react';
 import { ChatMessage,ApiErrorMessage } from '@/types';
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
+import { MessageActions } from '@/components/MessageActions';
+import { useToastNotification } from '@/hooks';
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
@@ -22,80 +24,12 @@ interface ChatMessagesProps {
   hasLastRequest?: boolean;
 }
 
-// 复制文本到剪贴板
-const copyToClipboard = async (text: string) => {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (err) {
-    console.error('复制失败:', err);
-  }
-};
-
-// 消息操作按钮组件
-function MessageActions({
-  message,
-  isLastAssistant,
-  onDelete,
-  onRetry,
-  onCopy
-}: {
-  message: ChatMessage;
-  isLastAssistant: boolean;
-  onDelete?: () => void;
-  onRetry?: () => void;
-  onCopy: () => void;
-}) {
-  const isUser = message.role === 'user';
-  const isError = !!message.error;
-
-  return (
-    <div className={`flex items-center gap-1 mt-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      {/* 复制按钮 */}
-      {!isError && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCopy}
-          className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-          title="复制"
-        >
-          <Copy className="w-3 h-3" />
-        </Button>
-      )}
-
-      {/* 删除按钮 */}
-      {onDelete && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
-          title="删除"
-        >
-          <Trash2 className="w-3 h-3" />
-        </Button>
-      )}
-
-      {/* 重试按钮 - 仅最后一条 assistant 消息显示 */}
-      {!isUser && isLastAssistant && onRetry && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onRetry}
-          className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-          title="重试"
-        >
-          <RefreshCw className="w-3 h-3" />
-        </Button>
-      )}
-    </div>
-  );
-}
-
 
 export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearMessages, onRetry, hasLastRequest }: ChatMessagesProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { showSuccess, showError } = useToastNotification();
 
   // 自动滚动到底部
   useEffect(() => {
@@ -108,6 +42,15 @@ export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearM
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showSuccess('复制成功');
+    } catch (err) {
+      console.error('复制失败:', err);
+      showError('复制失败');
+    }
   };
 
   if (messages.length === 0 && !isGenerating) {

@@ -193,18 +193,22 @@ export default function Home() {
       return;
     }
 
-    await retryGeneration(
-      settings.apiKey,
-      settings.apiUrl,
-      settings.modelList.find((model) => model.modelselect == lastRequest?.modelConfig.modelselect)?.model || 'gemini-3-pro-image',
-      useSystemStyle ? systemStyle : '',
+    await retryGeneration({
+      apiKey:settings.apiKey,
+      apiUrl:settings.apiUrl,
+      model:settings.modelList.find((model) => model.modelselect == lastRequest?.modelConfig.modelselect)?.model || 'gemini-3-pro-image',
+      messages,
       messageId,
-      async (mainImageMeta, mainImageSrc) => {
+      images,
+      materials,
+      systemStyle:useSystemStyle ? systemStyle : '',
+      onSuccess: async (mainImageMeta, mainImageSrc) => {
         await refreshChat(false);
         setSelectedImage({ ...mainImageMeta, src: mainImageSrc });
       },
-      showError
-    );
+      onError:showError,
+      onWarning:showWarning,
+    });
     await refreshChat(false);
   };
 
@@ -232,20 +236,15 @@ export default function Home() {
       systemStyle: useSystemStyle ? systemStyle : '',
       modelConfig,
       onSuccess: async (mainImageMeta, mainImageSrc) => {
-        await refreshChat(false);
-        setPrompt('');
-        clearReferences();
         setSelectedImage({ ...mainImageMeta, src: mainImageSrc });
       },
       onError: showError,
       onWarning: showWarning,
     });
 
-    if (!success) {
-      await refreshChat(false);
-      setPrompt('');
-      clearReferences();
-    }
+    await refreshChat(false);
+    setPrompt('');
+    clearReferences();
   };
 
   return (
