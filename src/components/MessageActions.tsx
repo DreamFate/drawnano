@@ -10,6 +10,7 @@ interface MessageActionsProps {
   onDelete?: () => void;
   onRetry?: () => void;
   onCopy: () => void;
+  isGenerating?: boolean;
 }
 
 export function MessageActions({
@@ -17,7 +18,8 @@ export function MessageActions({
   isLastAssistant,
   onDelete,
   onRetry,
-  onCopy
+  onCopy,
+  isGenerating
 }: MessageActionsProps) {
   const isUser = message.role === 'user';
   const isError = !!message.error;
@@ -26,7 +28,7 @@ export function MessageActions({
   const hasUsage = usage && (usage.totalTokenCount || usage.promptTokenCount || usage.candidatesTokenCount);
 
   return (
-    <div className={`flex items-center gap-2 mt-1 ${isUser ? 'justify-end' : 'justify-between'}`}>
+    <div className={`flex items-center gap-2 mt-1 ${isUser ? 'justify-end' : 'justify-between'} ${isGenerating ? 'pointer-events-none opacity-50' : ''}`}>
       <div className="flex items-center gap-1">
         {!isError && (
           <Button

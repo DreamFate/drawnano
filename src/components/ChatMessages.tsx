@@ -17,6 +17,7 @@ import { useToastNotification } from '@/hooks';
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
+  streamingMessage?: ChatMessage | null;
   isGenerating?: boolean;
   onDeleteMessage?: (messageId: string) => void;
   onClearMessages?: () => void;
@@ -25,7 +26,7 @@ interface ChatMessagesProps {
 }
 
 
-export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearMessages, onRetry, hasLastRequest }: ChatMessagesProps) {
+export function ChatMessages({ messages, streamingMessage, isGenerating, onDeleteMessage, onClearMessages, onRetry, hasLastRequest }: ChatMessagesProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +35,7 @@ export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearM
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isGenerating]);
+  }, [messages, streamingMessage, isGenerating]);
 
   // 格式化时间
   const formatTime = (date: Date) => {
@@ -98,11 +99,17 @@ export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearM
         <div className="p-4 space-y-4">
           {/* 找到最后一条 assistant 消息 */}
           {(() => {
-            const lastAssistantMessageId = messages
+            // 合并持久化消息和流式消息
+            const displayMessages = [
+              ...messages,
+              ...(streamingMessage ? [streamingMessage] : [])
+            ];
+
+            const lastAssistantMessageId = displayMessages
               .filter(m => m.role === 'model')
               .slice(-1)[0]?.id;
 
-            return messages.map((message) => {
+            return displayMessages.map((message) => {
               const isLastAssistantMessage = message.role === 'model' && message.id === lastAssistantMessageId;
 
               // 错误消息单独处理
@@ -127,6 +134,7 @@ export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearM
                       onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined}
                       onRetry={hasLastRequest && onRetry ? () => onRetry(message.id) : undefined}
                       onCopy={() => copyToClipboard(message.text)}
+                      isGenerating={isGenerating}
                     />
                   </div>
                 );
@@ -146,6 +154,7 @@ export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearM
                     isLastAssistant={false}
                     onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined}
                     onCopy={() => copyToClipboard(message.text)}
+                    isGenerating={isGenerating}
                   />
                 </div>
               ) : (
@@ -191,6 +200,7 @@ export function ChatMessages({ messages, isGenerating, onDeleteMessage, onClearM
                     onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined}
                     onRetry={hasLastRequest && onRetry ? () => onRetry(message.id) : undefined}
                     onCopy={() => copyToClipboard(message.text)}
+                    isGenerating={isGenerating}
                   />
                 </div>
               );

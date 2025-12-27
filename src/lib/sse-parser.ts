@@ -15,11 +15,13 @@ export interface SSEParseResult {
  * 解析 SSE 流式响应
  * @param response fetch 响应对象
  * @param onText 收到文本时的回调（可选，用于实时显示）
+ * @param onThought 收到思考内容时的回调（可选，用于实时显示）
  * @param onImage 收到图片时的回调（可选）
  */
 export async function parseSSEStream(
   response: Response,
   onText?: (text: string) => void,
+  onThought?: (thought: string) => void,
   onImage?: (url: string) => void
 ): Promise<SSEParseResult> {
   const reader = response.body?.getReader();
@@ -56,6 +58,7 @@ export async function parseSSEStream(
 
         if (chunk.type === 'thought') {
           thoughtContent += chunk.content;
+          onThought?.(chunk.content);
         } else if (chunk.type === 'text') {
           textContent += chunk.content;
           onText?.(chunk.content);

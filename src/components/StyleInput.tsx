@@ -141,7 +141,7 @@ export function StyleInput({
     };
 
     return (
-        <div className={`h-full p-2 bg-white dark:bg-gray-900 ${isGeneratingStyle ? 'opacity-70 pointer-events-none' : ''}`}>
+        <div className={`h-full p-2 bg-white dark:bg-gray-900 ${(isGenerating || isGeneratingStyle) ? 'opacity-70 pointer-events-none' : ''}`}>
             <InputGroup>
                 <InputGroupTextarea
                     value={systemStyle}
@@ -217,6 +217,9 @@ export function StyleInput({
                                 className="flex-1 min-h-[200px] resize-none text-sm overflow-y-auto"
                             />
                             <DialogFooter>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 mr-auto">
+                                    {dialogContent.length} 字符
+                                </span>
                                 <Button
                                     variant="outline"
                                     onClick={() => setDialogOpen(false)}
@@ -235,10 +238,12 @@ export function StyleInput({
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                        {systemStyle.length} 字符
+                    </span>
                     <InputGroupButton
                         variant="ghost"
                         size="sm"
-                        className='ml-auto'
                         onClick={handleClear}
                         disabled={!systemStyle.trim()||isGenerating || isGeneratingStyle}
 

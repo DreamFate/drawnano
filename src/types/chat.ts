@@ -30,6 +30,7 @@ export const ChatMessageSchema = z.object({
   timestamp: z.date(),
   error: apiErrorMessageSchema.optional(), // 错误信息（如大模型返回的错误）
   usageMetadata: usageMetadataSchema.optional(),
+  isStreaming: z.boolean().optional(), // 标记是否正在流式输出
 });
 
 export const ChatMessageSerializedSchema = ChatMessageSchema.extend({
@@ -48,3 +49,4 @@ export const contentsSchema = z.array(z.object({
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ApiErrorMessage = z.infer<typeof apiErrorMessageSchema>;
 export type Contents = z.infer<typeof contentsSchema>;
+export type UsageMetadata = z.infer<typeof usageMetadataSchema>;

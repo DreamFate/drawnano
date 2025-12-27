@@ -40,6 +40,7 @@ interface ImageGalleryProps {
     onDeleteImage?: (imageId: string) => void;
     onUpload?: (files: FileList) => void; // 仅素材库有
     title?: string;
+    isGenerating?: boolean; // 是否正在生成中
 }
 
 // 扩展类型，包含加载的 src
@@ -56,7 +57,8 @@ export function ImageGallery({
     referencedIds = [],
     onDeleteImage,
     onUpload,
-    title
+    title,
+    isGenerating = false
 }: ImageGalleryProps) {
     const [imagesWithSrc, setImagesWithSrc] = useState<ImageWithSrc[]>([]);
     const [enlargedImage, setEnlargedImage] = useState<ImageWithSrc | null>(null);
@@ -70,6 +72,9 @@ export function ImageGallery({
 
     // 上传 input ref
     const uploadInputRef = useRef<HTMLInputElement>(null);
+
+    // 滚动容器 ref
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // 拖拽上传状态
     const [isDragOver, setIsDragOver] = useState(false);
@@ -111,6 +116,13 @@ export function ImageGallery({
             setImagesWithSrc([]);
         }
     }, [imageIds]);
+
+    // 当图片数量增加时自动滚动到底部
+    useEffect(() => {
+        if (scrollContainerRef.current && imagesWithSrc.length > 0) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+    }, [imagesWithSrc.length]);
 
     // 处理图片引用
     const handleImageReference = (image: ImageWithSrc) => {
@@ -320,7 +332,7 @@ export function ImageGallery({
                 )}
 
                 {/* 图片网格 - 纵向滚动布局 */}
-                <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
                     {imagesWithSrc.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-400">
                             <div className="text-center">
@@ -334,8 +346,10 @@ export function ImageGallery({
                             {imagesWithSrc.map((image) => (
                                 <div
                                     key={image.id}
-                                    className="relative group cursor-pointer flex-shrink-0 w-[calc(25vh)] h-[calc(25vh)]"
-                                    onClick={() => handleImageReference(image)}
+                                    className={`relative group flex-shrink-0 w-[calc(25vh)] h-[calc(25vh)] ${
+                                        isGenerating ? 'cursor-default' : 'cursor-pointer'
+                                    }`}
+                                    onClick={() => !isGenerating && handleImageReference(image)}
                                 >
                                     {/* 编号标识 */}
                                     <div className="absolute top-1 left-1 z-10">
@@ -368,8 +382,9 @@ export function ImageGallery({
                                     </div>
 
                                     {/* 操作按钮 */}
-                                    <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <div className="flex gap-1">
+                                    {!isGenerating && (
+                                        <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-1">
                                             {/* 全屏按钮 */}
                                             <Button
                                                 size="sm"
@@ -427,19 +442,22 @@ export function ImageGallery({
                                                     <Trash2 className="w-3 h-3" />
                                                 </Button>
                                             )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* 点击提示覆盖层 */}
-                                    <div className="absolute rounded-lg inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                        <div className="text-white text-xs text-center font-medium">
-                                            <div className="flex items-center gap-1 justify-center mb-1">
-                                                <Hash className="w-3 h-3" />
-                                                <span>点击引用</span>
+                                    {!isGenerating && (
+                                        <div className="absolute rounded-lg inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                            <div className="text-white text-xs text-center font-medium">
+                                                <div className="flex items-center gap-1 justify-center mb-1">
+                                                    <Hash className="w-3 h-3" />
+                                                    <span>点击引用</span>
+                                                </div>
+                                                <div className="text-blue-200">[{referencePrefix}{image.number}]</div>
                                             </div>
-                                            <div className="text-blue-200">[{referencePrefix}{image.number}]</div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* 选中状态指示器 */}
                                     {image.id === selectedImageId && (

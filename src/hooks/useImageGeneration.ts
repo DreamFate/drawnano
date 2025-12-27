@@ -46,6 +46,7 @@ interface GenerateParams {
   onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
   onError: (message: string) => void;
   onWarning: (message: string) => void;
+  onMessagesUpdate?: () => Promise<void>;
 }
 
 interface retryGenerationParams{
@@ -60,6 +61,7 @@ interface retryGenerationParams{
   onSuccess: (mainImageMeta: GeneratedImageMeta, mainImageSrc: string) => void;
   onError: (message: string) => void;
   onWarning: (message: string) => void;
+  onMessagesUpdate?: () => Promise<void>;
 }
 
 /**
@@ -68,6 +70,7 @@ interface retryGenerationParams{
 export function useImageGeneration() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [lastRequest, setLastRequest] = useState<LastRequest | null>(null);
+  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
 
   // 准备引用图片列表
   const prepareReferenceImages = useCallback(async (
@@ -315,8 +318,36 @@ export function useImageGeneration() {
       return false;
     }
 
-    // 解析流式响应
-    const { textContent , thoughtContent, imageUrls, thoughtSignature, usageMetadata } = await parseSSEStream(response);
+    // 创建流式消息(仅内存)
+    const streamingMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'model',
+      text: '',
+      thought: '',
+      timestamp: new Date(),
+      isStreaming: true,
+    };
+    setStreamingMessage(streamingMsg);
+
+    // 解析流式响应,实时更新内存状态
+    const { textContent , thoughtContent, imageUrls, thoughtSignature, usageMetadata } = await parseSSEStream(
+      response,
+      (textChunk) => {
+        setStreamingMessage(prev => prev ? {
+          ...prev,
+          text: prev.text + textChunk
+        } : prev);
+      },
+      (thoughtChunk) => {
+        setStreamingMessage(prev => prev ? {
+          ...prev,
+          thought: (prev.thought || '') + thoughtChunk
+        } : prev);
+      }
+    );
+
+    // 流结束,清除流式状态
+    setStreamingMessage(null);
 
     // 保存思路签名到 IndexedDB (如果有)
     const thoughtSignatureId = await saveThoughtSignatureToStorage(thoughtSignature);
@@ -345,7 +376,7 @@ export function useImageGeneration() {
     }
 
     if (imageUrls.length === 0) {
-      assistantMessage.text = '本次未生成图片,请尝试重试'
+      assistantMessage.text += '/n本次未生成图片,请尝试重试'
       await addMessage(assistantMessage);
       return false;
     }
@@ -381,6 +412,7 @@ export function useImageGeneration() {
       onSuccess,
       onError,
       onWarning,
+      onMessagesUpdate,
     } = params;
 
     setIsGenerating(true);
@@ -397,6 +429,9 @@ export function useImageGeneration() {
         timestamp: new Date(),
       };
       await addMessage(userMessage);
+
+      // 立即刷新 UI 显示用户消息
+      await onMessagesUpdate?.();
 
       // 准备引用图片
       const referenceImages = await prepareReferenceImages(
@@ -456,6 +491,7 @@ export function useImageGeneration() {
       onSuccess,
       onError,
       onWarning,
+      onMessagesUpdate,
     } = params;
     if (!lastRequest) {
       onError('无法重试');
@@ -468,6 +504,7 @@ export function useImageGeneration() {
 
     try {
       await deleteMessage(messageId);
+      await onMessagesUpdate?.();
       const messages = await getMessages();
       // 准备引用图片
       const referenceImages = await prepareReferenceImages(
@@ -507,6 +544,7 @@ export function useImageGeneration() {
   return {
     isGenerating,
     lastRequest,
+    streamingMessage,
     generateImage,
     retryGeneration,
   };

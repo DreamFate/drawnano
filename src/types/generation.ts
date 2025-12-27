@@ -16,16 +16,22 @@ export const modalitiesSchema = z.enum(['Image', 'Image_Text']);
 export const modeltypeSchema = z.enum(['image', 'word']);
 
 // 模型类型
-export const modelselectSchema = z.enum(['gemini-3-pro-image', 'gemini-2.5-flah-image', 'gemini-3-pro']);
+export const modelselectSchema = z.enum(['gemini-3-pro-image', 'gemini-2.5-flah-image', 'gemini-3-pro','gemini-3-flash']);
+
+// 思考水平
+export const thinkLevelSchema = z.enum(['high','low','minimal','medium'])
+
+
 
 // 生成配置类型
 export const modelConfigSchema = z.object({
   modeltype: modeltypeSchema.optional().default('image'),
   modelselect: modelselectSchema.optional().default('gemini-3-pro-image'),
-
   aspectRatio: AspectRatioSchema.nullable().optional(),
   resolution: ResolutionSchema.nullable().optional(),
   modality: modalitiesSchema.nullable().optional(),
+  enableThinking: z.boolean().nullable().optional(),  // 是否启用思考总结
+  thinkLevel: thinkLevelSchema.nullable().optional(),
 });
 
 // ==================== API 请求 ====================
@@ -49,3 +55,4 @@ export type Modalities = z.infer<typeof modalitiesSchema>;
 export type ModelConfig = z.infer<typeof modelConfigSchema>;
 export type ModelType = z.infer<typeof modeltypeSchema>;
 export type ModelSelect = z.infer<typeof modelselectSchema>;
+export type ThinkLevel = z.infer<typeof thinkLevelSchema>;

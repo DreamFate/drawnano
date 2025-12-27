@@ -1,11 +1,20 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ImageWithSrc,
     ImageReference,
-    AspectRatio, Resolution, Modalities, ModelConfig, ModelSelect } from '@/types';
-import { MODEL_CONFIG_MAP } from '@/config/model-config';
+    AspectRatio, Resolution, Modalities, ModelConfig, ModelSelect, ThinkLevel } from '@/types';
+import {
+    MODEL_CONFIG_MAP,
+    ModelCapability,
+    ASPECT_RATIO_OPTIONS,
+    RESOLUTION_OPTIONS,
+    MODALITIES_OPTIONS,
+    THINK_LEVEL_OPTIONS,
+    MODEL_SELECT_OPTIONS,
+ } from '@/config/model-config';
 import {
     InputGroup,
     InputGroupAddon,
@@ -22,7 +31,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Lightbulb } from 'lucide-react';
 
 interface PromptInputProps {
     prompt: string;
@@ -41,36 +50,9 @@ interface PromptInputProps {
     onConfigChange: (config: ModelConfig) => void;
 }
 
-const ASPECT_RATIO_OPTIONS: { value: AspectRatio; label: string }[] = [
-    { value: 'auto', label: 'auto' },
-    { value: '1:1', label: '1:1' },
-    { value: '2:3', label: '2:3' },
-    { value: '3:2', label: '3:2' },
-    { value: '3:4', label: '3:4' },
-    { value: '4:3', label: '4:3' },
-    { value: '4:5', label: '4:5' },
-    { value: '5:4', label: '5:4' },
-    { value: '9:16', label: '9:16' },
-    { value: '16:9', label: '16:9' },
-    { value: '21:9', label: '21:9' },
-];
 
-const RESOLUTION_OPTIONS: { value: Resolution; label: string }[] = [
-    { value: '1k', label: '1K' },
-    { value: '2k', label: '2K' },
-    { value: '4k', label: '4K' },
-];
 
-const MODALITIES_OPTIONS: { value: Modalities; label: string }[] = [
-    { value: 'Image_Text', label: '图片+文本' },
-    { value: 'Image', label: '图片' },
-];
 
-// 从配置映射表生成选项列表
-const MODEL_SELECT_OPTIONS = Object.entries(MODEL_CONFIG_MAP).map(([value, config]) => ({
-    value: value as ModelSelect,
-    label: config.label,
-}));
 
 // 获取模型信息
 const getModelInfo = (modelSelect: ModelSelect) => {
@@ -78,14 +60,9 @@ const getModelInfo = (modelSelect: ModelSelect) => {
     return { modeltype: config.modeltype, model: config.model };
 };
 
-// 检查模型是否支持分辨率
-const supportsResolution = (modelSelect: ModelSelect) => {
-    return MODEL_CONFIG_MAP[modelSelect].supportsResolution;
-};
-
-// 检查模型是否支持图像配置
-const supportsImageConfig = (modelSelect: ModelSelect) => {
-    return MODEL_CONFIG_MAP[modelSelect].supportsImageConfig;
+// 检查模型是否支持某个能力
+const hasCapability = (modelSelect: ModelSelect, capability: ModelCapability) => {
+    return MODEL_CONFIG_MAP[modelSelect].capabilities.includes(capability);
 };
 
 export function PromptInput({
@@ -103,6 +80,24 @@ export function PromptInput({
     modelConfig,
     onConfigChange,
 }: PromptInputProps) {
+    // 思考总结开关状态(基于 modelConfig.enableThinking)
+    const thinkingEnabled = modelConfig.enableThinking === true;
+
+    // 监听 Ctrl+Enter 快捷键
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                // 检查是否满足生成条件
+                if (apiKey.trim() && prompt.trim() && !isGenerating) {
+                    onGenerate();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [apiKey, prompt, isGenerating, onGenerate]);
     // 处理模型选择变化
     const handleModelSelectChange = (modelSelect: ModelSelect) => {
         const modelInfo = getModelInfo(modelSelect);
@@ -112,30 +107,70 @@ export function PromptInput({
             modeltype: modelInfo.modeltype
         };
 
-        // 根据模型类型设置参数
+        // 根据模型能力设置参数
         if (modelInfo.modeltype === 'word') {
-            // 文字模型:所有图像参数设为 null
+            // 文字模型:清空图像参数,重置思考相关配置
             newConfig.aspectRatio = null;
             newConfig.resolution = null;
             newConfig.modality = null;
-        } else if (modelSelect === 'gemini-2.5-flah-image') {
-            // Gemini 2.5 Flash: 不支持分辨率
-            newConfig.resolution = null;
-            newConfig.aspectRatio = newConfig.aspectRatio || 'auto';
-            newConfig.modality = newConfig.modality || 'Image_Text';
+            newConfig.enableThinking = null;  // 默认关闭
+            newConfig.thinkLevel = null;  // 默认值
         } else {
-            // Gemini 3 Pro Image: 支持所有参数
+            // 图像模型:清空思考相关配置,设置图像参数
+            newConfig.enableThinking = null;
+            newConfig.thinkLevel = null;
             newConfig.aspectRatio = newConfig.aspectRatio || 'auto';
-            newConfig.resolution = newConfig.resolution || '1k';
             newConfig.modality = newConfig.modality || 'Image_Text';
+            // 只有支持分辨率的模型才设置分辨率
+            if (hasCapability(modelSelect, 'resolution')) {
+                newConfig.resolution = newConfig.resolution || '1k';
+            } else {
+                newConfig.resolution = null;
+            }
         }
 
         onConfigChange(newConfig);
     };
 
+    // 切换思考总结开关
+    const toggleThinking = () => {
+        const newEnabled = !thinkingEnabled;
+        onConfigChange({
+            ...modelConfig,
+            enableThinking: newEnabled ? true : null,
+            // 关闭时清空思考水平
+            thinkLevel: newEnabled ? modelConfig.thinkLevel : null
+        });
+    };
+
+    // 处理思考水平变化
+    const handleThinkLevelChange = (value: string) => {
+        // 选择默认时传 null
+        onConfigChange({
+            ...modelConfig,
+            thinkLevel: value === 'default' ? null : value as ThinkLevel
+        });
+    };
+
+    // 获取当前模型可用的思考水平选项(始终包含默认选项)
+    const getAvailableThinkLevels = () => {
+        const availableLevels = MODEL_CONFIG_MAP[currentModelSelect].availableThinkLevels;
+        if (!availableLevels) return THINK_LEVEL_OPTIONS;
+        // 过滤出可用选项,但始终保留默认选项
+        return THINK_LEVEL_OPTIONS.filter(opt =>
+            opt.value === 'default' || availableLevels.includes(opt.value as ThinkLevel)
+        );
+    };
+
+    // 获取当前显示的思考水平值(用于显示)
+    const getCurrentThinkLevelValue = () => {
+        return modelConfig.thinkLevel || 'default';
+    };
+
     const currentModelSelect = modelConfig.modelselect || 'gemini-3-pro-image';
-    const showImageConfig = supportsImageConfig(currentModelSelect);
-    const showResolution = supportsResolution(currentModelSelect);
+    const showImageConfig = hasCapability(currentModelSelect, 'imageConfig');
+    const showResolution = hasCapability(currentModelSelect, 'resolution');
+    const showThinkLevel = hasCapability(currentModelSelect, 'thinkLevel');
 
     return (
         <div className="h-full p-2 bg-white dark:bg-gray-900">
@@ -297,12 +332,53 @@ export function PromptInput({
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             )}
+
+                            {/* 思考总结 - 仅文字模型显示 */}
+                            {showThinkLevel && (
+                            <>
+                                {/* 思考水平下拉菜单 - 始终显示 */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild disabled={isGenerating}>
+                                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                                            {THINK_LEVEL_OPTIONS.find(m => m.value === getCurrentThinkLevelValue())?.label || '默认'}
+                                            <ChevronDown className="h-3 w-3 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuLabel className="text-xs">思考水平</DropdownMenuLabel>
+                                        <DropdownMenuRadioGroup
+                                            value={getCurrentThinkLevelValue()}
+                                            onValueChange={handleThinkLevelChange}
+                                        >
+                                            {getAvailableThinkLevels().map(opt => (
+                                                <DropdownMenuRadioItem key={opt.value} value={opt.value} className="text-xs">
+                                                    {opt.label}
+                                                </DropdownMenuRadioItem>
+                                            ))}
+                                        </DropdownMenuRadioGroup>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                {/* 灯泡开关按钮 - 控制是否启用思考总结 */}
+                                <Button
+                                    variant={thinkingEnabled ? "default" : "outline"}
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={toggleThinking}
+                                    disabled={isGenerating}
+                                    title={thinkingEnabled ? "关闭思考总结" : "开启思考总结"}
+                                >
+                                    <Lightbulb className={`h-4 w-4 ${thinkingEnabled ? 'text-yellow-300' : ''}`} />
+                                </Button>
+                            </>
+                            )}
                         </div>
+                        <InputGroupText className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                            {prompt.length} 字符
+                        </InputGroupText>
                         <InputGroupButton
                             onClick={onGenerate}
                             disabled={!apiKey.trim() || !prompt.trim() || isGenerating}
                             size="sm"
-                            className="ml-auto"
                             variant="outline"
                         >
                             {isGenerating

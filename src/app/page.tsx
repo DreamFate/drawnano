@@ -77,6 +77,7 @@ export default function Home() {
   const {
     isGenerating,
     lastRequest,
+    streamingMessage,
     generateImage,
     retryGeneration,
   } = useImageGeneration();
@@ -93,7 +94,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_GENERATION_CONFIG);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(false);
-  const [useSystemStyle, setUseSystemStyle] = useState(false);
+  const [useSystemStyle, setUseSystemStyle] = useState(true);
 
   // 客户端加载配置
   useEffect(() => {
@@ -208,6 +209,7 @@ export default function Home() {
       },
       onError:showError,
       onWarning:showWarning,
+      onMessagesUpdate: async () => await refreshChat(false),
     });
     await refreshChat(false);
   };
@@ -240,6 +242,7 @@ export default function Home() {
       },
       onError: showError,
       onWarning: showWarning,
+      onMessagesUpdate: async () => await refreshChat(false),
     });
 
     await refreshChat(false);
@@ -286,6 +289,7 @@ export default function Home() {
                   selectedImageId={selectedImage?.id}
                   referencedIds={referencedItems.filter(r => r.type === 'generated').map(r => r.id)}
                   onDeleteImage={handleDeleteImage}
+                  isGenerating={isGenerating}
                 />
               </div>
             </div>
@@ -312,6 +316,7 @@ export default function Home() {
                 <ResizablePanel defaultSize={40} minSize={20}>
                   <ChatMessages
                     messages={messages}
+                    streamingMessage={streamingMessage}
                     isGenerating={isGenerating}
                     onDeleteMessage={handleDeleteMessage}
                     onClearMessages={handleClearMessages}
@@ -336,6 +341,7 @@ export default function Home() {
               referencedIds={referencedItems.filter(r => r.type === 'material').map(r => r.id)}
               onDeleteImage={deleteMaterial}
               onUpload={uploadMaterials}
+              isGenerating={isGenerating}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
