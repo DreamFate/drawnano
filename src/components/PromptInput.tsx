@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Toggle } from '@/components/ui/toggle';
 import { ImageWithSrc,
     ImageReference,
     AspectRatio, Resolution, Modalities, ModelConfig, ModelSelect, ThinkLevel } from '@/types';
@@ -32,6 +33,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, Lightbulb } from 'lucide-react';
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
 
 interface PromptInputProps {
     prompt: string;
@@ -49,10 +51,6 @@ interface PromptInputProps {
     modelConfig: ModelConfig;
     onConfigChange: (config: ModelConfig) => void;
 }
-
-
-
-
 
 // 获取模型信息
 const getModelInfo = (modelSelect: ModelSelect) => {
@@ -133,13 +131,12 @@ export function PromptInput({
     };
 
     // 切换思考总结开关
-    const toggleThinking = () => {
-        const newEnabled = !thinkingEnabled;
+    const setThinkingEnabled = (enabled: boolean) => {
         onConfigChange({
             ...modelConfig,
-            enableThinking: newEnabled ? true : null,
+            enableThinking: enabled ? true : null,
             // 关闭时清空思考水平
-            thinkLevel: newEnabled ? modelConfig.thinkLevel : null
+            thinkLevel: enabled ? modelConfig.thinkLevel : null
         });
     };
 
@@ -175,7 +172,7 @@ export function PromptInput({
     return (
         <div className="h-full p-2 bg-white dark:bg-gray-900">
             <div className="h-full">
-                <InputGroup>
+                <InputGroup className="min-w-[400px]">
                     <InputGroupTextarea
                         value={prompt}
                         onChange={(e) => onPromptChange(e.target.value)}
@@ -184,13 +181,15 @@ export function PromptInput({
                                 ? "选中的图片标记为'图1',引用列表从'图2'开始,在提示词中使用这些编号来描述..."
                                 : "描述你想生成什么样的图片,或引用素材和生图,引用列表中的图片按顺序对应'图1、图2...'，在提示词中使用这些编号来描述..."
                         }
-                        className="flex-1 min-h-[120px] max-h-[120px] resize-none text-sm overflow-y-auto"
+                        className="flex-1 min-h-[120px] max-h-[120px] resize-none text-sm overflow-y-auto [field-sizing:initial]"
                         disabled={isGenerating}
                     />
                     <InputGroupAddon align="block-start">
-                        <InputGroupText className='text-xs'>引用列表:</InputGroupText>
+                        <InputGroupText className='text-xs min-w-[50px]'>
+                            引用列表 ({referencedItems.length}/{selectedImage ? 13 : 14}):
+                        </InputGroupText>
                         {referencedItems.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1 min-h-[32px] max-h-[32px] overflow-y-auto">
 
                                 {referencedItems.map((item, index) => {
                                     const imageNumber = selectedImage ? index + 2 : index + 1;
@@ -224,7 +223,7 @@ export function PromptInput({
                                 </InputGroupButton>
                             </div>
                         ) : (
-                            <InputGroupText className="text-xs min-h-[25px] flex items-center">无</InputGroupText>
+                            <InputGroupText className="text-xs min-h-[32px] flex items-center">无</InputGroupText>
                         )}
                     </InputGroupAddon>
                     <InputGroupAddon align="block-end">
@@ -359,16 +358,22 @@ export function PromptInput({
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                                 {/* 灯泡开关按钮 - 控制是否启用思考总结 */}
-                                <Button
-                                    variant={thinkingEnabled ? "default" : "outline"}
+                                <Toggle
                                     size="sm"
                                     className="h-7 w-7 p-0"
-                                    onClick={toggleThinking}
+                                    pressed={thinkingEnabled}
+                                    onPressedChange={setThinkingEnabled}
                                     disabled={isGenerating}
                                     title={thinkingEnabled ? "关闭思考总结" : "开启思考总结"}
                                 >
-                                    <Lightbulb className={`h-4 w-4 ${thinkingEnabled ? 'text-yellow-300' : ''}`} />
-                                </Button>
+                                    <Lightbulb
+                                        className={`h-4 w-4 transition-colors ${
+                                            thinkingEnabled
+                                                ? 'text-yellow-400 fill-yellow-400'
+                                                : 'text-muted-foreground'
+                                        }`}
+                                    />
+                                </Toggle>
                             </>
                             )}
                         </div>
@@ -383,11 +388,13 @@ export function PromptInput({
                         >
                             {isGenerating
                                 ? '生成中...'
-                                : selectedImage
-                                    ? '修改图片'
-                                    : '生成图片'
+                                : '生成'
                             }
-                            <kbd>⏎</kbd>
+                            <KbdGroup>
+                                <Kbd>Ctrl</Kbd>
+                                <span>+</span>
+                                <Kbd>Enter</Kbd>
+                            </KbdGroup>
                         </InputGroupButton>
 
                     </InputGroupAddon>

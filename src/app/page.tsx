@@ -2,6 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // 组件导入
 import { ImageGallery, GalleryImage } from '@/components/ImageGallery';
@@ -22,10 +32,11 @@ import {
 } from '@/hooks';
 
 // Types
-import { GeneratedImageMeta, ImageMeta, ModelConfig, ApiSetting } from '@/types';
+import { GeneratedImageMeta, MaterialMeta, ImageMeta, ModelConfig, ApiSetting } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
 import { loadGenerationConfig, saveGenerationConfig, DEFAULT_GENERATION_CONFIG } from '@/lib/config-storage';
 import { loadSettings, DEFAULT_SETTINGS } from '@/lib/settings-storage';
+import { batchDownloadImages } from '@/lib/batch-operations';
 
 // UI 组件
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
@@ -69,6 +80,8 @@ export default function Home() {
     referencedItems,
     addImageReference,
     addMaterialReference,
+    addBatchImageReferences,
+    addBatchMaterialReferences,
     removeReference,
     clearReferences,
     removeFromReferences,
@@ -95,6 +108,9 @@ export default function Home() {
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_GENERATION_CONFIG);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(false);
   const [useSystemStyle, setUseSystemStyle] = useState(true);
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [imageToDelete, setImageToDelete] = useState<string | null>(null);
 
   // 客户端加载配置
   useEffect(() => {
@@ -123,12 +139,12 @@ export default function Home() {
   const handleImageReference = async (imageNumber: number) => {
     const image = images.find((img: GeneratedImageMeta) => img.number === imageNumber);
     if (!image) return;
-    await addImageReference(image, selectedImage?.id || null, showWarning);
+    await addImageReference(image, selectedImage?.id || null, showWarning, showError);
   };
 
   // 处理图片选择修改（统一处理生成图片和素材）
   const handleImageSelect = async (imageMeta: ImageMeta) => {
-    removeFromReferences(imageMeta.id);
+    removeFromReferences(imageMeta.id, showWarning);
     await selectImage(imageMeta);
   };
 
@@ -141,7 +157,65 @@ export default function Home() {
   const insertMaterialReference = async (materialNumber: number) => {
     const material = materials.find(m => m.number === materialNumber);
     if (!material) return;
-    await addMaterialReference(material, selectedImage?.id || null, showError);
+    await addMaterialReference(material, selectedImage?.id || null, showWarning, showError);
+  };
+
+  // 批量引用图片
+  const handleBatchImageReference = async (imagesToReference: (ImageMeta & { src?: string })[]) => {
+    const generatedImages = imagesToReference.filter(img => img.type === 'generated') as GeneratedImageMeta[];
+    await addBatchImageReferences(generatedImages, selectedImage?.id || null, showWarning);
+  };
+
+  // 批量引用素材
+  const handleBatchMaterialReference = async (materialsToReference: (ImageMeta & { src?: string })[]) => {
+    const materials = materialsToReference.filter(img => img.type === 'material') as MaterialMeta[];
+    await addBatchMaterialReferences(materials, selectedImage?.id || null, showWarning);
+  };
+
+  // 批量下载图片
+  const handleBatchImageDownload = async (imagesToDownload: (ImageMeta & { src?: string })[]) => {
+    try {
+      await batchDownloadImages(imagesToDownload, 'generated');
+    } catch (error) {
+      showError('批量下载失败');
+      console.error('批量下载失败:', error);
+    }
+  };
+
+  // 批量下载素材
+  const handleBatchMaterialDownload = async (materialsToDownload: (ImageMeta & { src?: string })[]) => {
+    try {
+      await batchDownloadImages(materialsToDownload, 'material');
+    } catch (error) {
+      showError('批量下载失败');
+      console.error('批量下载失败:', error);
+    }
+  };
+
+  // 批量删除图片
+  const handleBatchImageDelete = async (imageIds: string[]) => {
+    try {
+      for (const imageId of imageIds) {
+        await deleteImage(imageId);
+      }
+    } catch (error) {
+      showError('批量删除失败');
+      console.error('批量删除失败:', error);
+      throw error;
+    }
+  };
+
+  // 批量删除素材
+  const handleBatchMaterialDelete = async (materialIds: string[]) => {
+    try {
+      for (const materialId of materialIds) {
+        await deleteMaterial(materialId);
+      }
+    } catch (error) {
+      showError('批量删除失败');
+      console.error('批量删除失败:', error);
+      throw error;
+    }
   };
 
   // 删除消息
@@ -154,23 +228,34 @@ export default function Home() {
   };
 
   // 清空对话
-  const handleClearMessages = async () => {
-    if (!confirm('确定要清空所有对话记录吗?图片不会被删除。')) return;
+  const handleClearMessages = () => {
+    setShowClearDialog(true);
+  };
+
+  const confirmClearMessages = async () => {
     try {
       await clearMessages();
     } catch {
       showError('清空对话失败');
     }
+    setShowClearDialog(false);
   };
 
   // 删除图片
-  const handleDeleteImage = async (imageId: string) => {
-    if (!confirm('确定要删除这张图片吗?')) return;
+  const handleDeleteImage = (imageId: string) => {
+    setImageToDelete(imageId);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteImage = async () => {
+    if (!imageToDelete) return;
     try {
-      await deleteImage(imageId);
+      await deleteImage(imageToDelete);
     } catch {
       showError('删除图片失败');
     }
+    setShowDeleteDialog(false);
+    setImageToDelete(null);
   };
 
   // 设置变更处理
@@ -251,7 +336,38 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen w-full flex-col bg-gray-100 dark:bg-gray-900">
+    <div className="flex h-screen w-full flex-col bg-gray-100 dark:bg-gray-900 min-w-[800px]">
+      {/* 清空对话确认对话框 */}
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认清空对话</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要清空所有对话记录吗?图片不会被删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearMessages}>确定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 删除图片确认对话框 */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除图片</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这张图片吗?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setImageToDelete(null)}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteImage}>确定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
 
       <div className="flex-1 overflow-hidden">
@@ -260,7 +376,7 @@ export default function Home() {
           <ResizablePanel defaultSize={14} maxSize={26} minSize={14}>
             <div className="flex flex-col h-full">
               {/* 顶部 Logo 区域 */}
-              <div className="border-b bg-white dark:bg-gray-800 px-3 py-1.5 flex-shrink-0">
+              <div className="border-b bg-white dark:bg-gray-800 px-3 py-1.5 flex-shrink-0 min-w-[220px]">
                 <Item size="sm" className="p-0 gap-2">
                   <ItemContent className="gap-0">
                     <ItemTitle className="text-base font-bold">DrawNano</ItemTitle>
@@ -290,6 +406,9 @@ export default function Home() {
                   referencedIds={referencedItems.filter(r => r.type === 'generated').map(r => r.id)}
                   onDeleteImage={handleDeleteImage}
                   isGenerating={isGenerating}
+                  onBatchReference={handleBatchImageReference}
+                  onBatchDelete={handleBatchImageDelete}
+                  onBatchDownload={handleBatchImageDownload}
                 />
               </div>
             </div>
@@ -342,15 +461,18 @@ export default function Home() {
               onDeleteImage={deleteMaterial}
               onUpload={uploadMaterials}
               isGenerating={isGenerating}
+              onBatchReference={handleBatchMaterialReference}
+              onBatchDelete={handleBatchMaterialDelete}
+              onBatchDownload={handleBatchMaterialDownload}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
 
       {/* 底部：输入区域 */}
-      <div className="border-t bg-white dark:bg-gray-900 flex items-stretch">
+      <div className="border-t bg-white dark:bg-gray-900 flex items-stretch min-w-[750px]">
         {/* 左侧：风格描述区 */}
-        <div className="w-[25%] flex-shrink-0">
+        <div className="w-[25%] flex-shrink-0 min-w-[250px]">
           <StyleInput
             systemStyle={systemStyle}
             onSystemStyleChange={setSystemStyle}
@@ -365,7 +487,7 @@ export default function Home() {
         </div>
 
         {/* 中间：提示词输入区 */}
-        <div className="w-[60%]">
+        <div className="w-[75%]">
           <PromptInput
             prompt={prompt}
             onPromptChange={setPrompt}

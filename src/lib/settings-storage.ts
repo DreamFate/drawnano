@@ -31,6 +31,10 @@ export const DEFAULT_SETTINGS: ApiSetting = {
     {
       modelselect: 'gemini-3-pro',
       model: 'gemini-3-pro-preview'
+    },
+    {
+      modelselect: 'gemini-3-flash',
+      model: 'gemini-3-flash-preview'
     }
   ],
 };

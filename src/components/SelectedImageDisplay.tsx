@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -7,9 +8,14 @@ import {
   X,
   ZoomIn,
   Edit,
-  Loader2
+  Loader2,
+  Maximize2,
+  Download,
+  Trash2
 } from 'lucide-react';
 import { ImageWithSrc } from '@/types';
+import { useImageDownload } from '@/hooks';
+import { ImageFullscreenViewer } from '@/components/ImageFullscreenViewer';
 
 interface SelectedImageDisplayProps {
   selectedImage: ImageWithSrc | null;
@@ -22,6 +28,18 @@ export function SelectedImageDisplay({
   onClearSelection,
   isGenerating = false
 }: SelectedImageDisplayProps) {
+  const [fullscreenImage, setFullscreenImage] = useState<ImageWithSrc | null>(null);
+  const { downloadImage, generateFilename } = useImageDownload();
+
+  const handleDownload = () => {
+    if (!selectedImage?.src) return;
+    const filename = generateFilename(
+      selectedImage.type === 'generated' ? 'generated' : 'material',
+      selectedImage.number,
+      selectedImage.timestamp
+    );
+    downloadImage(selectedImage.src, filename);
+  };
   if (!selectedImage) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-800/50">
@@ -37,7 +55,7 @@ export function SelectedImageDisplay({
   }
 
   return (
-    <div className="h-full bg-white dark:bg-gray-900">
+    <div className="h-full bg-white dark:bg-gray-900 min-w-[200px]">
       {/* 标题栏 */}
       <div className="flex min-h-[40px] items-center justify-between p-2 border-b bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-2">
@@ -61,7 +79,7 @@ export function SelectedImageDisplay({
       </div>
 
       {/* 图片显示区域 */}
-      <div className="h-[calc(100%-60px)] p-4">
+      <div className="h-[calc(100%-70px)] p-4">
         <div className="h-full flex flex-col">
           {/* 图片容器 */}
           <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden relative group">
@@ -82,12 +100,41 @@ export function SelectedImageDisplay({
             )}
           </div>
 
-          {/* 操作提示 */}
-          <div className="mt-2 text-xs text-center text-gray-500">
-            <p>💡 在下方输入框中描述你想要的修改</p>
-          </div>
+
         </div>
+                  {/* 操作按钮 */}
+          <div className="flex-1 mt-2 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFullscreenImage(selectedImage)}
+              className="flex-1"
+              disabled={isGenerating}
+            >
+              <Maximize2 className="w-4 h-4 mr-2" />
+              查看
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              className="flex-1"
+              disabled={isGenerating}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              下载
+            </Button>
+          </div>
       </div>
+
+      {/* 全屏查看器 */}
+      <ImageFullscreenViewer
+        image={fullscreenImage ? {
+          src: fullscreenImage.src || '',
+          alt: `选中图片 ${fullscreenImage.number}`
+        } : null}
+        onClose={() => setFullscreenImage(null)}
+      />
     </div>
   );
 }

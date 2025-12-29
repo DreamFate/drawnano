@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
@@ -116,6 +117,9 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
       <DialogContent className="max-w-lg max-h-[95vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
+          <DialogDescription>
+            配置 API 密钥、模型参数和生成风格提示词
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2 px-1 overflow-y-auto flex-1">
@@ -218,30 +222,62 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
           </div>
 
           {/* 生成风格模型 */}
-          <div className="space-y-2">
-            <Label htmlFor="wordModel" className="flex items-center gap-2">
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
               <Cpu className="w-4 h-4" />
               文字模型
             </Label>
-            <Input
-              id="wordModel"
-              type="text"
-              value={tempSettings.modelList.find(m => m.modelselect === 'gemini-3-pro')?.model || 'gemini-3-pro'}
-              onChange={(e) => {
-                const newModelList = [...tempSettings.modelList];
-                const index = newModelList.findIndex(m => m.modelselect === 'gemini-3-pro');
-                if (index >= 0) {
-                  newModelList[index] = { modelselect: 'gemini-3-pro', model: e.target.value };
-                } else {
-                  newModelList.push({ modelselect: 'gemini-3-pro', model: e.target.value });
-                }
-                setTempSettings({ ...tempSettings, modelList: newModelList });
-              }}
-              placeholder="gemini-3-pro"
-              className="h-8 text-sm"
-            />
+
+            <div className="space-y-2 pl-2">
+              <div className="space-y-1">
+                <Label htmlFor="wordModelFlash" className="text-xs text-muted-foreground">
+                  Gemini 3 Flash 模型
+                </Label>
+                <Input
+                  id="wordModelFlash"
+                  type="text"
+                  value={tempSettings.modelList.find(m => m.modelselect === 'gemini-3-flash')?.model || 'gemini-3-flash'}
+                  onChange={(e) => {
+                    const newModelList = [...tempSettings.modelList];
+                    const index = newModelList.findIndex(m => m.modelselect === 'gemini-3-flash');
+                    if (index >= 0) {
+                      newModelList[index] = { modelselect: 'gemini-3-flash', model: e.target.value };
+                    } else {
+                      newModelList.push({ modelselect: 'gemini-3-flash', model: e.target.value });
+                    }
+                    setTempSettings({ ...tempSettings, modelList: newModelList });
+                  }}
+                  placeholder="gemini-3-flash"
+                  className="h-8 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="wordModelPro" className="text-xs text-muted-foreground">
+                  Gemini 3 Pro 模型
+                </Label>
+                <Input
+                  id="wordModelPro"
+                  type="text"
+                  value={tempSettings.modelList.find(m => m.modelselect === 'gemini-3-pro')?.model || 'gemini-3-pro'}
+                  onChange={(e) => {
+                    const newModelList = [...tempSettings.modelList];
+                    const index = newModelList.findIndex(m => m.modelselect === 'gemini-3-pro');
+                    if (index >= 0) {
+                      newModelList[index] = { modelselect: 'gemini-3-pro', model: e.target.value };
+                    } else {
+                      newModelList.push({ modelselect: 'gemini-3-pro', model: e.target.value });
+                    }
+                    setTempSettings({ ...tempSettings, modelList: newModelList });
+                  }}
+                  placeholder="gemini-3-pro"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+
             <p className="text-xs text-muted-foreground">
-              点击"生成风格"按钮时,"文本"模式下使用的模型，默认: gemini-3-pro
+              "生成风格"使用Gemini 3 Pro
             </p>
           </div>
 

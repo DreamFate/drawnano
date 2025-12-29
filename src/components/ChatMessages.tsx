@@ -13,6 +13,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { MessageActions } from '@/components/MessageActions';
+import { MarkdownContent } from '@/components/MarkdownContent';
 import { useToastNotification } from '@/hooks';
 
 interface ChatMessagesProps {
@@ -47,7 +48,7 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showSuccess('复制成功');
+      showSuccess('已复制文本');
     } catch (err) {
       console.error('复制失败:', err);
       showError('复制失败');
@@ -69,7 +70,7 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
   }
 
   return (
-    <div className="h-full bg-white dark:bg-gray-900">
+    <div className="h-full bg-white dark:bg-gray-900 min-w-[240px]">
       {/* 标题栏 */}
       <div className="flex min-h-[40px] items-center justify-between p-2 border-b bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-2">
@@ -127,7 +128,6 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
                         </AlertDescription>
                       </Alert>
                     </div>
-                    {/* 删除按钮 */}
                     <MessageActions
                       message={message}
                       isLastAssistant={isLastAssistantMessage}
@@ -176,9 +176,7 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
                   )}
 
                   {/* 消息内容 */}
-                  <div className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
-                    {message.text}
-                  </div>
+                  <MarkdownContent content={message.text} />
 
                   {/* 图片生成标识 */}
                   {message.isImage && (

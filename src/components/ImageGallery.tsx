@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useImageDownload, useImageDialog } from '@/hooks';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ImageFullscreenViewer } from '@/components/ImageFullscreenViewer';
+import { BatchOperationDialog } from '@/components/BatchOperationDialog';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter
 } from '@/components/ui/dialog';
 import {
@@ -21,7 +25,8 @@ import {
     X,
     Trash2,
     RotateCcw,
-    Upload
+    Upload,
+    CheckSquare
 } from 'lucide-react';
 import { ImageMeta } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
@@ -41,6 +46,9 @@ interface ImageGalleryProps {
     onUpload?: (files: FileList) => void; // 仅素材库有
     title?: string;
     isGenerating?: boolean; // 是否正在生成中
+    onBatchReference?: (images: ImageWithSrc[]) => Promise<void>; // 批量引用
+    onBatchDelete?: (imageIds: string[]) => Promise<void>; // 批量删除
+    onBatchDownload?: (images: ImageWithSrc[]) => Promise<void>; // 批量下载
 }
 
 // 扩展类型，包含加载的 src
@@ -58,17 +66,18 @@ export function ImageGallery({
     onDeleteImage,
     onUpload,
     title,
-    isGenerating = false
+    isGenerating = false,
+    onBatchReference,
+    onBatchDelete,
+    onBatchDownload
 }: ImageGalleryProps) {
     const [imagesWithSrc, setImagesWithSrc] = useState<ImageWithSrc[]>([]);
-    const [enlargedImage, setEnlargedImage] = useState<ImageWithSrc | null>(null);
     const [fullscreenImage, setFullscreenImage] = useState<ImageWithSrc | null>(null);
+    const [showBatchDialog, setShowBatchDialog] = useState(false);
 
-    // 全屏查看的缩放和拖动状态
-    const [scale, setScale] = useState(1);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    // 使用自定义 hooks
+    const { dialogImage: enlargedImage, openDialog: openEnlargedDialog, closeDialog: closeEnlargedDialog } = useImageDialog<ImageWithSrc>();
+    const { downloadImage, generateFilename } = useImageDownload();
 
     // 上传 input ref
     const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -138,7 +147,7 @@ export function ImageGallery({
 
     // 处理图片放大
     const handleImageEnlarge = (image: ImageWithSrc) => {
-        setEnlargedImage(image);
+        openEnlargedDialog(image);
     };
 
     // 处理全屏显示
@@ -146,103 +155,17 @@ export function ImageGallery({
         setFullscreenImage(image);
     };
 
-    // 处理图片下载
-    const handleImageDownload = (image: ImageWithSrc) => {
-        if (!image.src) return;
-        const link = document.createElement('a');
-        link.href = image.src;
-        const prefix = mode === 'material' ? '素材' : '图片';
-        link.download = `${prefix}${image.number}_${image.timestamp.toISOString().split('T')[0]}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    // 关闭Dialog
-    const handleCloseDialog = () => {
-        setEnlargedImage(null);
-    };
-
     // 关闭全屏
     const handleCloseFullscreen = () => {
         setFullscreenImage(null);
-        setScale(1);
-        setPosition({ x: 0, y: 0 });
     };
 
-    // 缩放控制
-    const handleZoomIn = () => {
-        setScale(prev => Math.min(prev * 1.3, 5));
+    // 处理图片下载
+    const handleImageDownload = (image: ImageWithSrc) => {
+        if (!image.src) return;
+        const filename = generateFilename(mode, image.number, image.timestamp);
+        downloadImage(image.src, filename);
     };
-
-    const handleZoomOut = () => {
-        setScale(prev => Math.max(prev / 1.3, 0.5));
-    };
-
-    const handleResetZoom = () => {
-        setScale(1);
-        setPosition({ x: 0, y: 0 });
-    };
-
-    // 滚轮缩放
-    const handleWheel = (e: React.WheelEvent) => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        setScale(prev => Math.min(Math.max(prev * delta, 0.5), 5));
-    };
-
-    // 拖动开始
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (scale > 1) {
-            setIsDragging(true);
-            setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-        }
-    };
-
-    // 拖动中
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (isDragging) {
-            setPosition({
-                x: e.clientX - dragStart.x,
-                y: e.clientY - dragStart.y
-            });
-        }
-    };
-
-    // 拖动结束
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    // 阻止全屏模式下的滚动
-    useEffect(() => {
-        if (fullscreenImage) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [fullscreenImage]);
-
-    // 全屏模式下的键盘事件
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (fullscreenImage && e.key === 'Escape') {
-                handleCloseFullscreen();
-            }
-        };
-
-        if (fullscreenImage) {
-            document.addEventListener('keydown', handleKeyDown);
-        }
-
-        return () => {
-            document.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [fullscreenImage]);
 
     // 处理上传
     const handleUploadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,16 +207,30 @@ export function ImageGallery({
 
     return (
         <>
-            <div className="w-full h-full bg-white dark:bg-gray-900 flex flex-col overflow-hidden">
+            <div className="w-full h-full bg-white dark:bg-gray-900 flex flex-col overflow-hidden min-w-[220px]">
                 {/* 标题栏 */}
                 <div className="flex-shrink-0 flex min-h-[40px] items-center justify-between p-2 border-b bg-gray-50 dark:bg-gray-800">
                     <div className="flex items-center gap-2">
                         {isMaterial ? <Hash className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
                         <span className="text-sm font-medium">{displayTitle}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
-                        {imagesWithSrc.length} 张
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        {imagesWithSrc.length > 0 && !isGenerating && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowBatchDialog(true)}
+                                className="h-7 text-xs"
+                                title='批量操作'
+                            >
+                                <CheckSquare className="w-3 h-3 mr-1" />
+
+                            </Button>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                            {imagesWithSrc.length} 张
+                        </Badge>
+                    </div>
                 </div>
 
                 {/* 素材上传区域 - 仅素材库显示，支持拖拽 */}
@@ -484,13 +421,16 @@ export function ImageGallery({
             </div>
 
             {/* 图片详情Dialog */}
-            <Dialog open={!!enlargedImage} onOpenChange={handleCloseDialog}>
+            <Dialog open={!!enlargedImage} onOpenChange={closeEnlargedDialog}>
                 <DialogContent className="max-w-4xl h-[90vh] max-h-[90vh] p-0 flex flex-col">
                     <DialogHeader className="p-4 pb-2 flex-shrink-0">
                         <DialogTitle className="flex items-center gap-2">
                             {isMaterial ? <Hash className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
                             {referencePrefix} {enlargedImage?.number} - 详细查看
                         </DialogTitle>
+                        <DialogDescription>
+                            查看图片详情并进行引用、修改或下载操作
+                        </DialogDescription>
                     </DialogHeader>
 
                     {enlargedImage && enlargedImage.src && (
@@ -510,7 +450,7 @@ export function ImageGallery({
                                     <Button
                                         onClick={() => {
                                             handleImageReference(enlargedImage);
-                                            handleCloseDialog();
+                                            closeEnlargedDialog();
                                         }}
                                         variant="outline"
                                         className="flex-1"
@@ -522,7 +462,7 @@ export function ImageGallery({
                                     <Button
                                         onClick={() => {
                                             handleImageEdit(enlargedImage);
-                                            handleCloseDialog();
+                                            closeEnlargedDialog();
                                         }}
                                         className="flex-1"
                                     >
@@ -542,7 +482,7 @@ export function ImageGallery({
                                         <Button
                                             onClick={() => {
                                                 onDeleteImage(enlargedImage.id);
-                                                handleCloseDialog();
+                                                closeEnlargedDialog();
                                             }}
                                             variant="destructive"
                                             className="flex-1"
@@ -558,92 +498,25 @@ export function ImageGallery({
                 </DialogContent>
             </Dialog>
 
-            {/* 真正的全屏浮窗 */}
-            {fullscreenImage && fullscreenImage.src && (
-                <div
-                    className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center overflow-hidden"
-                    onWheel={handleWheel}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                >
-                    {/* 背景点击关闭（仅在未缩放时） */}
-                    <div
-                        className="absolute inset-0"
-                        onClick={() => scale === 1 && handleCloseFullscreen()}
-                    />
+            {/* 全屏查看器 */}
+            <ImageFullscreenViewer
+                image={fullscreenImage ? {
+                    src: fullscreenImage.src || '',
+                    alt: `${referencePrefix} ${fullscreenImage.number}`
+                } : null}
+                onClose={handleCloseFullscreen}
+            />
 
-                    {/* 图片容器 */}
-                    <div
-                        className={`relative flex items-center justify-center select-none ${scale > 1 ? 'cursor-grab' : 'cursor-default'
-                            } ${isDragging ? 'cursor-grabbing' : ''}`}
-                        style={{
-                            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                            transition: isDragging ? 'none' : 'transform 0.1s ease-out'
-                        }}
-                        onMouseDown={handleMouseDown}
-                    >
-                        <img
-                            src={fullscreenImage.src}
-                            alt={`${referencePrefix} ${fullscreenImage.number}`}
-                            className="max-w-[90vw] max-h-[90vh] object-contain pointer-events-none"
-                            draggable={false}
-                        />
-                    </div>
-
-                    {/* 顶部工具栏 */}
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 rounded-lg px-3 py-2 z-10">
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-white hover:bg-white/20 h-8 w-8 p-0"
-                            onClick={handleZoomOut}
-                            title="缩小"
-                        >
-                            <ZoomOut className="w-4 h-4" />
-                        </Button>
-
-                        <span className="text-white text-sm min-w-[50px] text-center">
-                            {Math.round(scale * 100)}%
-                        </span>
-
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-white hover:bg-white/20 h-8 w-8 p-0"
-                            onClick={handleZoomIn}
-                            title="放大"
-                        >
-                            <ZoomIn className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-white hover:bg-white/20 h-8 w-8 p-0"
-                            onClick={handleResetZoom}
-                            title="重置"
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                        </Button>
-                    </div>
-
-                    {/* 右上角关闭按钮 */}
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        className="absolute top-4 right-4 bg-white/90 hover:bg-white z-10"
-                        onClick={handleCloseFullscreen}
-                    >
-                        <X className="w-4 h-4" />
-                    </Button>
-
-                    {/* 底部提示 */}
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs z-10">
-                        滚轮缩放 · 拖动平移 · ESC 关闭
-                    </div>
-                </div>
-            )}
+            {/* 批量操作弹窗 */}
+            <BatchOperationDialog
+                open={showBatchDialog}
+                onOpenChange={setShowBatchDialog}
+                images={imagesWithSrc}
+                mode={mode}
+                onBatchReference={onBatchReference}
+                onBatchDelete={onBatchDelete}
+                onBatchDownload={onBatchDownload}
+            />
         </>
     );
 }

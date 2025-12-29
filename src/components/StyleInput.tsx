@@ -17,6 +17,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
     DialogTrigger,
 } from "@/components/ui/dialog"
@@ -142,7 +143,7 @@ export function StyleInput({
 
     return (
         <div className={`h-full p-2 bg-white dark:bg-gray-900 ${(isGenerating || isGeneratingStyle) ? 'opacity-70 pointer-events-none' : ''}`}>
-            <InputGroup>
+            <InputGroup className="min-w-[240px]">
                 <InputGroupTextarea
                     value={systemStyle}
                     onChange={(e) => onSystemStyleChange(e.target.value)}
@@ -151,7 +152,7 @@ export function StyleInput({
                     disabled={isGenerating || isGeneratingStyle}
                 />
                 <InputGroupAddon align="block-start" >
-                    <div className="flex flex-wrap gap-1" >
+                    <div className="flex gap-1 min-h-[32px] max-h-[32px] flex-shrink-0 items-center" >
                         {styleSlots.map((slot) => (
                             <Badge
                                 key={slot.id}
@@ -166,13 +167,14 @@ export function StyleInput({
                             </Badge>
                         ))}
                     </div>
-                    <div className="flex items-center gap-2 ml-auto">
+                    <div className="flex items-center gap-2 ml-auto min-h-[32px] flex-shrink-0">
                         <div className="flex items-center gap-1.5">
                             <Switch
                                 checked={useSystemStyle}
                                 onCheckedChange={onUseSystemStyleChange}
                                 disabled={isGenerating || isGeneratingStyle}
                                 className="scale-90"
+                                title={useSystemStyle ? "关闭使用系统风格" : "开启使用系统风格"}
                             />
                         </div>
                         <InputGroupButton
@@ -209,6 +211,9 @@ export function StyleInput({
                         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
                             <DialogHeader>
                                 <DialogTitle>编辑整体风格</DialogTitle>
+                                <DialogDescription>
+                                    在此编辑整体画面风格描述
+                                </DialogDescription>
                             </DialogHeader>
                             <Textarea
                                 value={dialogContent}

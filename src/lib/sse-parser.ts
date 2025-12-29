@@ -38,6 +38,30 @@ export async function parseSSEStream(
   const imageUrls: string[] = [];
   let buffer = '';
 
+  const chunkHandlers: Record<string, (chunk: any) => void> = {
+    thought: (chunk) => {
+      thoughtContent += chunk.content;
+      onThought?.(chunk.content);
+    },
+    text: (chunk) => {
+      textContent += chunk.content;
+      onText?.(chunk.content);
+    },
+    thoughtSignature: (chunk) => {
+      thoughtSignature += chunk.content;
+    },
+    image: (chunk) => {
+      imageUrls.push(chunk.content);
+      onImage?.(chunk.content);
+    },
+    error: (chunk) => {
+      console.warn('大模型返回错误:', chunk.message);
+    },
+    usageMetadata: (chunk) => {
+      usageMetadata = { ...usageMetadata, ...chunk.content };
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -54,24 +78,8 @@ export async function parseSSEStream(
 
       try {
         const chunk = JSON.parse(dataStr);
-
-
-        if (chunk.type === 'thought') {
-          thoughtContent += chunk.content;
-          onThought?.(chunk.content);
-        } else if (chunk.type === 'text') {
-          textContent += chunk.content;
-          onText?.(chunk.content);
-        } else if (chunk.type === 'thoughtSignature') {
-          thoughtSignature += chunk.content;
-        } else if (chunk.type === 'image') {
-          imageUrls.push(chunk.content);
-          onImage?.(chunk.content);
-        } else if (chunk.type === 'error') {
-          console.warn('大模型返回错误:', chunk.message);
-        } else if (chunk.type === 'usageMetadata') {
-          usageMetadata = { ...usageMetadata, ...chunk.content };
-        }
+        const handler = chunkHandlers[chunk.type];
+        handler?.(chunk);
       } catch (e) {
         console.error('解析chunk失败:', e);
       }

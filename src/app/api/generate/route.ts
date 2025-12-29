@@ -72,30 +72,30 @@ export async function POST(request: Request) {
 
     // 构建 generationConfig (仅在有配置时添加)
     if (modelConfig?.modeltype === 'image') {
-      const generationConfig: any = {};
-
-      // 输出模态
       const responseModalities = modelConfig?.modality === 'Image_Text'
         ? ['IMAGE', 'TEXT']
         : [modelConfig?.modality?.toUpperCase() || 'IMAGE'];
-      generationConfig.responseModalities = responseModalities;
 
-      // 添加图片配置 (imageConfig)
-      const imageConfig: Record<string, string> = {};
-      if (modelConfig?.aspectRatio && modelConfig.aspectRatio !== 'auto') {
-        imageConfig.aspectRatio = modelConfig.aspectRatio;
-      }
-      if (modelConfig?.resolution) {
-        imageConfig.imageSize = modelConfig.resolution;
-      }
-      // 只有存在配置时才添加imageConfig
-      if (Object.keys(imageConfig).length > 0) {
-        generationConfig.imageConfig = imageConfig;
-      }
+      const imageConfig: Record<string, string> = {
+        ...(modelConfig?.aspectRatio && modelConfig.aspectRatio !== 'auto' && { aspectRatio: modelConfig.aspectRatio }),
+        ...(modelConfig?.resolution && { imageSize: modelConfig.resolution })
+      };
 
-      // 只有存在配置时才添加到 requestBody
-      if (Object.keys(generationConfig).length > 0) {
-        requestBody.generationConfig = generationConfig;
+      const generationConfig: any = {
+        responseModalities,
+        ...(Object.keys(imageConfig).length > 0 && { imageConfig })
+      };
+
+      requestBody.generationConfig = generationConfig;
+
+    } else if (modelConfig?.modeltype === 'word') {
+      const thinkingConfig: Record<string, any> = {
+        ...(modelConfig?.enableThinking === true && { includeThoughts: true }),
+        ...(modelConfig?.thinkLevel && { thinkingLevel: modelConfig.thinkLevel })
+      };
+
+      if (Object.keys(thinkingConfig).length > 0) {
+        requestBody.generationConfig = { thinkingConfig };
       }
     }
 
@@ -107,14 +107,6 @@ export async function POST(request: Request) {
         }]
       };
     }
-
-    // requestBody.generationConfig = {
-    //   thinkingConfig: {
-    //     includeThoughts: true,
-    //     thinkingLevel: "low",
-    //   },
-    // }
-
 
 
     console.log('使用模型:', actualModel, '宽高比:', modelConfig?.aspectRatio, '分辨率:', modelConfig?.resolution || '默认', '输出类型:', modelConfig?.modality);

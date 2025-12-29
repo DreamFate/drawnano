@@ -109,7 +109,6 @@ export async function POST(request: Request) {
             }
 
             const rawText = decoder.decode(value, { stream: true });
-            console.log('[generate-style] raw chunk:', rawText); // 日志：原始数据
 
             buffer += rawText;
             const lines = buffer.split('\n');

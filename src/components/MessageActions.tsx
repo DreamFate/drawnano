@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from '@/components/ui/button';
-import { Copy, Trash2, RefreshCw } from 'lucide-react';
+import { Copy, Trash2, RefreshCw, ChevronDown } from 'lucide-react';
 import { ChatMessage } from '@/types';
 
 interface MessageActionsProps {
