@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, Lightbulb } from 'lucide-react';
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { getReferenceListNumber } from '@/lib/image-number-utils';
 
 interface PromptInputProps {
     prompt: string;
@@ -192,7 +193,7 @@ export function PromptInput({
                             <div className="flex flex-wrap gap-1 min-h-[32px] max-h-[32px] overflow-y-auto">
 
                                 {referencedItems.map((item, index) => {
-                                    const imageNumber = selectedImage ? index + 2 : index + 1;
+                                    const imageNumber = getReferenceListNumber(index, !!selectedImage);
                                     return (
                                         <Badge
                                             key={item.id}

@@ -70,7 +70,7 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
   }
 
   return (
-    <div className="h-full bg-white dark:bg-gray-900 min-w-[240px]">
+    <div className="h-full w-full bg-white dark:bg-gray-900 min-w-[240px]">
       {/* 标题栏 */}
       <div className="flex min-h-[40px] items-center justify-between p-2 border-b bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-2">
@@ -158,8 +158,8 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
                   />
                 </div>
               ) : (
-                // AI消息 - w-full 无包围
-                <div key={message.id} className="w-full">
+                // AI消息 - 自适应宽度
+                <div key={message.id} className="max-w-full">
                   {/* 思考内容 */}
                   {message.thought && (
                     <Collapsible className="mb-2">
@@ -176,7 +176,9 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
                   )}
 
                   {/* 消息内容 */}
-                  <MarkdownContent content={message.text} />
+                  <div className="min-w-[220px]">
+                    <MarkdownContent content={message.text} />
+                  </div>
 
                   {/* 图片生成标识 */}
                   {message.isImage && (
@@ -207,7 +209,7 @@ export function ChatMessages({ messages, streamingMessage, isGenerating, onDelet
 
           {/* 生成中指示器 */}
           {isGenerating && (
-            <div className="w-full">
+            <div className="max-w-full">
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>

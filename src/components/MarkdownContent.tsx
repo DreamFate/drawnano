@@ -19,14 +19,14 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           code: ({ node, inline, className, children, ...props }: any) => {
             return inline ? (
               <code
-                className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-sm font-mono"
+                className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-sm font-mono break-all"
                 {...props}
               >
                 {children}
               </code>
             ) : (
               <code
-                className={`block p-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto font-mono text-sm ${className || ''}`}
+                className={`inline-block p-3 bg-gray-100 dark:bg-gray-800 rounded-lg font-mono text-sm whitespace-pre-wrap break-words ${className || ''}`}
                 {...props}
               >
                 {children}

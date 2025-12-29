@@ -28,9 +28,10 @@ import {
     Upload,
     CheckSquare
 } from 'lucide-react';
-import { ImageMeta } from '@/types';
+import { ImageMeta, ImageReference } from '@/types';
 import { getImageSrc } from '@/lib/conversation-storage';
 import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group"
+import { getImageReferenceNumber } from '@/lib/image-number-utils';
 
 // 统一的图片类型（使用 discriminated union）
 export type GalleryImage = ImageMeta;
@@ -297,6 +298,21 @@ export function ImageGallery({
                                             {image.number}
                                         </Badge>
                                     </div>
+
+                                    {/* 引用编号标识 - 右上角紫色 */}
+                                    {(() => {
+                                        const refNumber = getImageReferenceNumber(image.id, selectedImageId || null, referencedIds);
+                                        return refNumber !== null ? (
+                                            <div className="absolute top-1 right-1 z-10">
+                                                <Badge
+                                                    variant="default"
+                                                    className="w-5 h-5 rounded-full p-0 flex items-center justify-center text-xs font-bold bg-purple-600"
+                                                >
+                                                    {refNumber}
+                                                </Badge>
+                                            </div>
+                                        ) : null;
+                                    })()}
 
                                     {/* 图片容器 */}
                                     <div className={`w-full h-full rounded-lg border-2 transition-colors overflow-hidden ${image.id === selectedImageId

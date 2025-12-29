@@ -403,7 +403,7 @@ export default function Home() {
                   onImageReference={handleImageReference}
                   onImageSelect={handleImageSelect}
                   selectedImageId={selectedImage?.id}
-                  referencedIds={referencedItems.filter(r => r.type === 'generated').map(r => r.id)}
+                  referencedIds={referencedItems.map(r => r.id)}
                   onDeleteImage={handleDeleteImage}
                   isGenerating={isGenerating}
                   onBatchReference={handleBatchImageReference}
@@ -457,7 +457,7 @@ export default function Home() {
               onImageReference={insertMaterialReference}
               onImageSelect={handleMaterialSelect}
               selectedImageId={selectedImage?.id}
-              referencedIds={referencedItems.filter(r => r.type === 'material').map(r => r.id)}
+              referencedIds={referencedItems.map(r => r.id)}
               onDeleteImage={deleteMaterial}
               onUpload={uploadMaterials}
               isGenerating={isGenerating}
