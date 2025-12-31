@@ -25,9 +25,11 @@ import { useToastNotification } from '@/hooks';
 interface SettingsDialogProps {
   onSettingsChange: (settings: ApiSetting) => void;
   defaultOpen?: boolean;
+  onDefaultOpenHandled?: () => void;
+  initialSettings?: ApiSetting;
 }
 
-export function SettingsDialog({ onSettingsChange, defaultOpen = false }: SettingsDialogProps) {
+export function SettingsDialog({ onSettingsChange, defaultOpen = false, onDefaultOpenHandled, initialSettings }: SettingsDialogProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [settings, setSettings] = useState<ApiSetting>(DEFAULT_SETTINGS);
   const [tempSettings, setTempSettings] = useState<ApiSetting>(DEFAULT_SETTINGS);
@@ -38,32 +40,22 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
 
   // 初始化加载设置
   useEffect(() => {
-    const saved = loadSettings();
-    setSettings(saved);
-    setTempSettings(saved);
-    setHasApiKey(!!saved.apiKey);
-    onSettingsChange(saved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (initialSettings) {
+      setSettings(initialSettings);
+      setTempSettings(initialSettings);
+      setHasApiKey(!!initialSettings.apiKey);
+    }
+  }, [initialSettings]);
 
-  // 监听 defaultOpen 变化,首次打开时检查并初始化设置
+  // 监听 defaultOpen 变化,首次打开时自动打开对话框
   useEffect(() => {
     if (defaultOpen) {
-      // 检查 localStorage 中是否存在 drawnano_settings
-      const hasSettings = typeof window !== 'undefined' && localStorage.getItem('drawnano_settings');
-
-      if (!hasSettings) {
-        // 如果不存在,使用默认设置并保存
-        saveSettings(DEFAULT_SETTINGS);
-        setSettings(DEFAULT_SETTINGS);
-        setTempSettings(DEFAULT_SETTINGS);
-        setHasApiKey(!!DEFAULT_SETTINGS.apiKey);
-        onSettingsChange(DEFAULT_SETTINGS);
-      }
-
       setOpen(true);
+      // 通知父组件已处理 defaultOpen,避免重复触发
+      onDefaultOpenHandled?.();
     }
-  }, [defaultOpen, onSettingsChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultOpen]);
 
   // 打开对话框时同步临时设置
   const handleOpenChange = (isOpen: boolean) => {
@@ -171,7 +163,7 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
               type="text"
               value={tempSettings.apiUrl}
               onChange={(e) => setTempSettings({ ...tempSettings, apiUrl: e.target.value })}
-              placeholder="https://openai.weavex.tech/v1/chat/completions"
+              placeholder="https://generativelanguage.googleapis.com/v1"
             />
             <p className="text-xs text-muted-foreground">
               默认: {DEFAULT_SETTINGS.apiUrl}

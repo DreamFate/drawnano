@@ -263,6 +263,11 @@ export default function Home() {
     setSettings(newSettings);
   };
 
+  // 处理 defaultOpen 已被处理的回调
+  const handleDefaultOpenHandled = () => {
+    setShowSettingsOnStart(false);
+  };
+
   // 生成风格描述
   const handleGenerateStyle = async () => {
     if (!selectedImage || !settings.apiKey.trim()) {
@@ -392,7 +397,12 @@ export default function Home() {
                     <ItemDescription className="text-xs">nano banana 2 生图</ItemDescription>
                   </ItemContent>
                   <ItemActions>
-                    <SettingsDialog onSettingsChange={handleSettingsChange} defaultOpen={showSettingsOnStart} />
+                    <SettingsDialog
+                      onSettingsChange={handleSettingsChange}
+                      defaultOpen={showSettingsOnStart}
+                      onDefaultOpenHandled={handleDefaultOpenHandled}
+                      initialSettings={settings}
+                    />
                     <a
                       href="https://github.com/DreamFate/drawnano"
                       target="_blank"

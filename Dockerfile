@@ -16,7 +16,7 @@ COPY package.json pnpm-lock.yaml* ./
 FROM base AS deps
 
 # 安装生产依赖
-RUN pnpm install --frozen-lockfile --prod=false
+RUN pnpm install --no-frozen-lockfile --prod=false
 
 # ============================================
 # 构建阶段

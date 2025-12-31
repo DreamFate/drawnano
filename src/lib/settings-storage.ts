@@ -69,7 +69,7 @@ export const DEFAULT_WORD_DEFAULT_PROMPT = `# Role: drawnano - 顶级AI生图专
 
 export const DEFAULT_SETTINGS: ApiSetting = {
   apiKey: '',
-  apiUrl: 'https://generativelanguage.googleapis.com',
+  apiUrl: 'https://generativelanguage.googleapis.com/v1beta',
   styleGeneratorPrompt: DEFAULT_STYLE_GENERATOR_PROMPT,
   wordDefaultPrompt: DEFAULT_WORD_DEFAULT_PROMPT,
   modelList: [
@@ -79,7 +79,7 @@ export const DEFAULT_SETTINGS: ApiSetting = {
     },
     {
       modelselect: 'gemini-2.5-flah-image',
-      model: 'gemini-2.5-flash'
+      model: 'gemini-2.5-flash-image'
     },
     {
       modelselect: 'gemini-3-pro',

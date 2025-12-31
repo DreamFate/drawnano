@@ -383,7 +383,7 @@ export function PromptInput({
                         </InputGroupText>
                         <InputGroupButton
                             onClick={onGenerate}
-                            disabled={!apiKey.trim() || !prompt.trim() || isGenerating}
+                            disabled={ !prompt.trim() || isGenerating}
                             size="sm"
                             variant="outline"
                         >
