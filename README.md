@@ -1,6 +1,6 @@
 # DrawNano - AI 图片生成与编辑工具
 
-一个基于 Gemini Nano Banana的强大,提供图片生成与编辑工具。
+一个基于 Google Gemini (Nano Banana) 的强大 AI 图片生成与编辑工具。
 
 ## ✨ 核心特性
 
@@ -19,8 +19,10 @@
 ## 🔧 技术架构
 
 ### AI 模型
-- **API供应商**: [DeepClaude](https://erlich.fun/deepclaude-pricing) - 使用 OpenAI 兼容的 API 结构
-- **图片生成模型**: Gemini Nano Banana - 提供高质量的图片生成能力
+- **API供应商**: Google Gemini - 使用原生 Gemini API 格式
+- **支持模型**:
+  - Gemini 3 Pro - 高性能文字和图片生成模型
+  - Gemini 3 Flash - 快速响应的文字和图片生成模型
 
 ### 技术栈
 - **框架**: Next.js 15.5.2
@@ -71,10 +73,9 @@ npm start
 ## 🔑 配置要求
 
 使用本项目需要配置以下 API:
-- DeepClaude API 密钥
-- Gemini Nano Banana 访问权限
+- Google Gemini API 密钥
 
-请参考 [DeepClaude 定价页面](https://erlich.fun/deepclaude-pricing) 获取 API 密钥。
+请访问 [Google AI Studio](https://aistudio.google.com/apikey) 获取 API 密钥。
 
 ## 📦 项目结构
 
