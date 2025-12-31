@@ -219,18 +219,18 @@ export async function POST(request: Request) {
               try {
                 const data = JSON.parse(dataStr);
 
-                // 打印响应结构(不包含 parts 详细内容)
-                const logData = {
-                  ...data,
-                  candidates: data.candidates?.map((c: any) => ({
-                    ...c,
-                    content: {
-                      ...c.content,
-                      parts: `[${c.content?.parts?.length || 0} parts]`
-                    }
-                  }))
-                };
-                console.log('📦 Gemini 响应结构:', JSON.stringify(logData, null, 2));
+                // // 打印响应结构(不包含 parts 详细内容)
+                // const logData = {
+                //   ...data,
+                //   candidates: data.candidates?.map((c: any) => ({
+                //     ...c,
+                //     content: {
+                //       ...c.content,
+                //       parts: `[${c.content?.parts?.length || 0} parts]`
+                //     }
+                //   }))
+                // };
+                // console.log('📦 Gemini 响应结构:', JSON.stringify(logData, null, 2));
 
                 // Gemini格式: candidates[0].content.parts
                 const parts = data.candidates?.[0]?.content?.parts;

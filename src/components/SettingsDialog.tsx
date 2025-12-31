@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { ApiSetting } from '@/types';
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_STYLE_GENERATOR_PROMPT } from '@/lib/settings-storage';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_STYLE_GENERATOR_PROMPT, DEFAULT_WORD_DEFAULT_PROMPT } from '@/lib/settings-storage';
 import { cleanInvalidGeneratedImages, cleanInvalidMaterials } from '@/lib/generated-image-storage';
 import { useToastNotification } from '@/hooks';
 
@@ -46,12 +46,24 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 监听 defaultOpen 变化
+  // 监听 defaultOpen 变化,首次打开时检查并初始化设置
   useEffect(() => {
     if (defaultOpen) {
+      // 检查 localStorage 中是否存在 drawnano_settings
+      const hasSettings = typeof window !== 'undefined' && localStorage.getItem('drawnano_settings');
+
+      if (!hasSettings) {
+        // 如果不存在,使用默认设置并保存
+        saveSettings(DEFAULT_SETTINGS);
+        setSettings(DEFAULT_SETTINGS);
+        setTempSettings(DEFAULT_SETTINGS);
+        setHasApiKey(!!DEFAULT_SETTINGS.apiKey);
+        onSettingsChange(DEFAULT_SETTINGS);
+      }
+
       setOpen(true);
     }
-  }, [defaultOpen]);
+  }, [defaultOpen, onSettingsChange]);
 
   // 打开对话框时同步临时设置
   const handleOpenChange = (isOpen: boolean) => {
@@ -222,7 +234,7 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
           </div>
 
           {/* 生成风格模型 */}
-          <div className="space-y-3">
+          <div className="space-y-3 ">
             <Label className="flex items-center gap-2">
               <Cpu className="w-4 h-4" />
               文字模型
@@ -283,7 +295,7 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
 
           {/* 生成风格提示词 */}
           <div className="space-y-2">
-            <Label htmlFor="styleGeneratorPrompt" className="flex items-center gap-2">
+            <Label htmlFor="styleGeneratorPrompt" className="flex items-center gap-">
               <Palette className="w-4 h-4" />
               生成风格提示词
             </Label>
@@ -291,12 +303,27 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false }: Settin
               id="styleGeneratorPrompt"
               value={tempSettings.styleGeneratorPrompt}
               onChange={(e) => setTempSettings({ ...tempSettings, styleGeneratorPrompt: e.target.value })}
-              placeholder={DEFAULT_STYLE_GENERATOR_PROMPT}
+              placeholder="生成风格提示词"
               className="min-h-[100px] max-h-[150px] resize-none text-sm"
             />
             <p className="text-xs text-muted-foreground">
               点击"生成风格"按钮时使用的系统提示词
             </p>
+          </div>
+
+          {/* 文字模型默认提示词 */}
+          <div className="space-y-2">
+            <Label htmlFor="wordDefaultPrompt" className="flex items-center gap-2">
+              <Palette className="w-4 h-4" />
+              文字模型默认提示词
+            </Label>
+            <Textarea
+              id="wordDefaultPrompt"
+              value={tempSettings.wordDefaultPrompt}
+              onChange={(e) => setTempSettings({ ...tempSettings, wordDefaultPrompt: e.target.value })}
+              placeholder="文字模型默认提示词,如Gemini 3 Pro没有其他用户提示词时使用的系统提示词"
+              className="min-h-[100px] max-h-[150px] resize-none text-sm"
+            />
           </div>
 
           {/* 清理失效图片 */}

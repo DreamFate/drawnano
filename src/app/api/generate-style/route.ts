@@ -130,7 +130,7 @@ export async function POST(request: Request) {
                 if (parts && Array.isArray(parts)) {
                   for (const part of parts) {
                     if (part.text) {
-                      console.log('[generate-style] content:', part.text);
+                      // console.log('[generate-style] content:', part.text);
                       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: part.text })}\n\n`));
                     }
                   }

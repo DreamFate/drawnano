@@ -107,7 +107,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_GENERATION_CONFIG);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(false);
-  const [useSystemStyle, setUseSystemStyle] = useState(true);
+  const [useSystemStyle, setUseSystemStyle] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
@@ -272,6 +272,11 @@ export default function Home() {
     await generateStyle(selectedImage.src, settings.apiKey, settings.apiUrl, settings.modelList.find((model) => model.modelselect === 'gemini-3-pro')?.model || 'gemini-3-pro', settings.styleGeneratorPrompt, showError);
   };
 
+  const handleSystemStyleChange = (): string => {
+    if (useSystemStyle) return systemStyle;
+    return modelConfig.modeltype === 'word' ? settings.wordDefaultPrompt : '';
+  };
+
   // 重试
   const handleRetry = async (messageId:string) => {
     if (!lastRequest || !settings.apiKey.trim()) {
@@ -287,7 +292,7 @@ export default function Home() {
       messageId,
       images,
       materials,
-      systemStyle:useSystemStyle ? systemStyle : '',
+      systemStyle: handleSystemStyleChange(),
       onSuccess: async (mainImageMeta, mainImageSrc) => {
         await refreshChat(false);
         setSelectedImage({ ...mainImageMeta, src: mainImageSrc });
@@ -320,7 +325,7 @@ export default function Home() {
       selectedImage,
       referencedItems,
       materials,
-      systemStyle: useSystemStyle ? systemStyle : '',
+      systemStyle: handleSystemStyleChange(),
       modelConfig,
       onSuccess: async (mainImageMeta, mainImageSrc) => {
         setSelectedImage({ ...mainImageMeta, src: mainImageSrc });
