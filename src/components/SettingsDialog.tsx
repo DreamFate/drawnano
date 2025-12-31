@@ -163,7 +163,7 @@ export function SettingsDialog({ onSettingsChange, defaultOpen = false, onDefaul
               type="text"
               value={tempSettings.apiUrl}
               onChange={(e) => setTempSettings({ ...tempSettings, apiUrl: e.target.value })}
-              placeholder="https://generativelanguage.googleapis.com/v1"
+              placeholder="https://generativelanguage.googleapis.com/v1beta"
             />
             <p className="text-xs text-muted-foreground">
               默认: {DEFAULT_SETTINGS.apiUrl}
