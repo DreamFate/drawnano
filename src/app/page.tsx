@@ -383,8 +383,12 @@ export default function Home() {
               {/* 顶部 Logo 区域 */}
               <div className="border-b bg-white dark:bg-gray-800 px-3 py-1.5 flex-shrink-0 min-w-[220px]">
                 <Item size="sm" className="p-0 gap-2">
+
                   <ItemContent className="gap-0">
-                    <ItemTitle className="text-base font-bold">DrawNano</ItemTitle>
+                    <div className="flex items-center gap-1">
+                      <img src="/vercel.svg" alt="DrawNano Logo" className="size-5" />
+                      <ItemTitle className="text-base font-bold">DrawNano</ItemTitle>
+                    </div>
                     <ItemDescription className="text-xs">nano banana 2 生图</ItemDescription>
                   </ItemContent>
                   <ItemActions>

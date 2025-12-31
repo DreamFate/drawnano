@@ -369,14 +369,16 @@ export function useImageGeneration() {
         await addMessage(assistantMessage);
         return true;
       }else {
-        assistantMessage.text = '本次未返回内容,请尝试重试'
+        assistantMessage.text = '\n本次未返回内容,请尝试重试'
+        onWarning?.('本次未返回内容,请尝试重试')
         await addMessage(assistantMessage);
         return false;
       }
     }
 
     if (imageUrls.length === 0) {
-      assistantMessage.text += '/n本次未生成图片,请尝试重试'
+      assistantMessage.text += '\n本次未生成图片,请尝试重试'
+      onWarning?.('本次未生成图片,请尝试重试')
       await addMessage(assistantMessage);
       return false;
     }
