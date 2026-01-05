@@ -122,7 +122,7 @@ export function PromptInput({
             newConfig.modality = newConfig.modality || 'Image_Text';
             // 只有支持分辨率的模型才设置分辨率
             if (hasCapability(modelSelect, 'resolution')) {
-                newConfig.resolution = newConfig.resolution || '1k';
+                newConfig.resolution = newConfig.resolution || '1K';
             } else {
                 newConfig.resolution = null;
             }

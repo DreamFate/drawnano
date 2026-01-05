@@ -7,7 +7,7 @@ import { contentsSchema } from './chat';
 export const AspectRatioSchema = z.enum(['auto','1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']);
 
 // 分辨率选项 (仅 gemini-3-pro 支持)
-export const ResolutionSchema = z.enum(['1k', '2k', '4k']);
+export const ResolutionSchema = z.enum(['1K', '2K', '4K']);
 
 // 模态选项
 export const modalitiesSchema = z.enum(['Image', 'Image_Text']);
