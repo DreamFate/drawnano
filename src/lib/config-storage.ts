@@ -6,7 +6,7 @@ export const DEFAULT_GENERATION_CONFIG: ModelConfig = {
   modeltype: 'image',
   modelselect: 'gemini-3-pro-image',
   aspectRatio: 'auto',
-  resolution: '1k',
+  resolution: '1K',
   modality: 'Image_Text',
 };
 
